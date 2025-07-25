@@ -151,9 +151,19 @@ export default function OrderCard({
               {order.selectedServices?.length || 0} additional services
             </p>
             {order.selectedServices?.length > 0 && (
-              <p className="text-xs text-gray-500">
-                Priority Boarding, Extra Legroom
-              </p>
+              <div className="text-xs text-gray-500 space-y-1">
+                {order.selectedServices.slice(0, 2).map((service: any, index: number) => (
+                  <div key={index} className="flex justify-between">
+                    <span>{service.name}</span>
+                    {service.passengerName && service.passengerName !== "General Service" && (
+                      <span className="text-blue-600">({service.passengerName})</span>
+                    )}
+                  </div>
+                ))}
+                {order.selectedServices.length > 2 && (
+                  <div className="text-gray-400">+{order.selectedServices.length - 2} more</div>
+                )}
+              </div>
             )}
           </div>
         </div>
