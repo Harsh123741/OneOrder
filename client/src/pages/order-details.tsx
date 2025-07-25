@@ -111,6 +111,8 @@ export default function OrderDetails() {
   const [showAddServices, setShowAddServices] = useState(false);
   const [availableServices, setAvailableServices] = useState<any[]>([]);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [selectedPassengerServices, setSelectedPassengerServices] = useState<{[key: number]: any[]}>({});
+  const [currentServicePassenger, setCurrentServicePassenger] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("credit_card");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState({
@@ -230,13 +232,37 @@ export default function OrderDetails() {
     }
   };
 
+  const handlePassengerServiceToggle = (service: any, passengerIndex: number) => {
+    const currentPassengerServices = selectedPassengerServices[passengerIndex] || [];
+    const exists = currentPassengerServices.find((s: any) => s.id === service.id);
+    
+    if (exists) {
+      setSelectedPassengerServices(prev => ({
+        ...prev,
+        [passengerIndex]: currentPassengerServices.filter((s: any) => s.id !== service.id)
+      }));
+    } else {
+      setSelectedPassengerServices(prev => ({
+        ...prev,
+        [passengerIndex]: [...currentPassengerServices, { ...service, quantity: 1, passengerId: passengerIndex }]
+      }));
+    }
+  };
+
+  const getPassengerServicesTotal = () => {
+    return Object.values(selectedPassengerServices)
+      .flat()
+      .reduce((total, service: any) => total + parseFloat(service.price), 0);
+  };
+
   const handleAddSelectedServices = () => {
-    if (selectedServices.length > 0) {
+    const allSelectedServices = Object.values(selectedPassengerServices).flat();
+    if (allSelectedServices.length > 0) {
       if (paymentMethod === "credit_card" || paymentMethod === "debit_card") {
         setShowPaymentDetails(true);
       } else {
         addServicesMutation.mutate({
-          services: selectedServices,
+          services: allSelectedServices,
           paymentMethod,
           paymentDetails: null,
         });
@@ -245,8 +271,9 @@ export default function OrderDetails() {
   };
 
   const handlePaymentDetailsSubmit = () => {
+    const allSelectedServices = Object.values(selectedPassengerServices).flat();
     addServicesMutation.mutate({
-      services: selectedServices,
+      services: allSelectedServices,
       paymentMethod,
       paymentDetails,
     });
@@ -701,12 +728,12 @@ export default function OrderDetails() {
           </CardContent>
         </Card>
 
-        {/* Services & Add-ons */}
+        {/* Services & Add-ons - Organized by Passenger */}
         <Card className="mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Additional Services</CardTitle>
-              {order?.status === "confirmed" && (
+              {(order as any)?.status === "confirmed" && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -719,52 +746,102 @@ export default function OrderDetails() {
             </div>
           </CardHeader>
           <CardContent>
-            {order?.selectedServices && order.selectedServices.length > 0 ? (
-              <div className="space-y-3">
-                {order?.selectedServices?.map((service: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between py-2 px-4 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center">
-                        <span className="text-white text-xs">✓</span>
-                      </div>
-                      <span className="font-medium">{service.name}</span>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="font-semibold text-airline-blue">
-                        ${parseFloat(service.price).toFixed(2)}
-                      </span>
-                      {order?.status === "confirmed" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRemoveService(service.id)}
-                          disabled={removeServiceMutation.isPending}
-                          className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
+            {(() => {
+              const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
+              
+              // Check if any passenger has services
+              const hasAnyServices = passengers.some((passenger: any) => 
+                passenger.services && Array.isArray(passenger.services) && passenger.services.length > 0
+              ) || ((order as any)?.selectedServices && (order as any).selectedServices.length > 0);
+
+              if (!hasAnyServices) {
+                return (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No additional services selected</p>
+                    {(order as any)?.status === "confirmed" && (
+                      <p className="text-sm mt-2">
+                        You can add services to enhance your travel experience
+                      </p>
+                    )}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <p>No additional services selected</p>
-                {order?.status === "confirmed" && (
-                  <p className="text-sm mt-2">
-                    You can add services to enhance your travel experience
-                  </p>
-                )}
-              </div>
-            )}
+                );
+              }
+
+              return (
+                <div className="space-y-6">
+                  {passengers.map((passenger: any, passengerIndex: number) => {
+                    // Get services for this passenger
+                    const passengerServices = passenger.services && Array.isArray(passenger.services) 
+                      ? passenger.services 
+                      : (passengers.length === 1 && (order as any)?.selectedServices ? (order as any).selectedServices : []);
+                    
+                    if (!passengerServices || passengerServices.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={passengerIndex} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            {passenger.firstName} {passenger.lastName}
+                          </h4>
+                          <Badge variant="secondary" className="text-xs">
+                            {passengerServices.length} service{passengerServices.length !== 1 ? 's' : ''}
+                          </Badge>
+                        </div>
+                        
+                        <div className="space-y-3">
+                          {passengerServices.map((service: any, serviceIndex: number) => (
+                            <div
+                              key={serviceIndex}
+                              className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                                <div>
+                                  <span className="font-medium">{service.name}</span>
+                                  {service.quantity > 1 && (
+                                    <span className="text-sm text-gray-600 ml-2">x{service.quantity}</span>
+                                  )}
+                                  {service.phase && (
+                                    <Badge variant="outline" className="text-xs ml-2">
+                                      {service.phase}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <span className="font-semibold text-airline-blue">
+                                  ${(parseFloat(service.price) * (service.quantity || 1)).toFixed(2)}
+                                </span>
+                                {(order as any)?.status === "confirmed" && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRemoveService(service.id)}
+                                    disabled={removeServiceMutation.isPending}
+                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                  >
+                                    Remove
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
-        {/* Add Services Modal */}
+        {/* Add Services Modal with Passenger Selection */}
         {showAddServices && (
           <Card className="mb-6 border-airline-blue">
             <CardHeader>
@@ -781,80 +858,162 @@ export default function OrderDetails() {
             </CardHeader>
             <CardContent>
               {services && services.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="grid gap-3">
-                    {services.map((service: any) => {
-                      const isSelected = selectedServices.find(
-                        (s) => s.id === service.id,
-                      );
-                      return (
-                        <div
-                          key={service.id}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                            isSelected
-                              ? "border-airline-blue bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300"
-                          }`}
-                          onClick={() => handleServiceToggle(service)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <h4 className="font-semibold">
-                                  {service.name}
-                                </h4>
-                                <Badge variant="secondary" className="text-xs">
-                                  {service.phase}
-                                </Badge>
-                                {service.tag && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {service.tag.replace("_", " ")}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-600 mt-1">
-                                {service.description}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-bold text-airline-blue">
-                                ${parseFloat(service.price).toFixed(2)}
-                              </p>
-                              {isSelected && (
-                                <div className="w-5 h-5 bg-airline-blue rounded-full flex items-center justify-center mt-1 ml-auto">
-                                  <span className="text-white text-xs">✓</span>
-                                </div>
+                <div className="space-y-6">
+                  {/* Passenger Selection Tabs */}
+                  {(() => {
+                    const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
+                    
+                    return (
+                      <div>
+                        <div className="flex space-x-2 mb-6 border-b">
+                          {passengers.map((passenger: any, index: number) => (
+                            <Button
+                              key={index}
+                              variant={currentServicePassenger === index ? "default" : "outline"}
+                              onClick={() => setCurrentServicePassenger(index)}
+                              className="flex-1 mb-2"
+                            >
+                              {passenger.firstName} {passenger.lastName}
+                              {selectedPassengerServices[index] && selectedPassengerServices[index].length > 0 && (
+                                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  {selectedPassengerServices[index].length}
+                                </span>
                               )}
-                            </div>
-                          </div>
+                            </Button>
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {selectedServices.length > 0 && (
-                    <div className="border-t pt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold">
-                          Selected Services ({selectedServices.length})
-                        </h4>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600">
-                            Cost Breakdown
-                          </p>
-                          <p className="text-sm">
-                            Services: ${getTotalAdditionalCost().toFixed(2)}
-                          </p>
-                          <p className="text-sm">
-                            Taxes: $
-                            {(getTotalAdditionalCost() * 0.12).toFixed(2)}
-                          </p>
-                          <p className="font-bold text-airline-blue text-lg">
-                            Total: $
-                            {(getTotalAdditionalCost() * 1.12).toFixed(2)}
+                        
+                        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                          <h4 className="font-semibold text-blue-900">
+                            Selecting services for: {passengers[currentServicePassenger]?.firstName} {passengers[currentServicePassenger]?.lastName}
+                          </h4>
+                          <p className="text-sm text-blue-700">
+                            Choose services that will be assigned specifically to this passenger.
                           </p>
                         </div>
                       </div>
+                    );
+                  })()}
+
+                  {/* Services by Phase */}
+                  <div className="space-y-6">
+                    {(() => {
+                      const servicesByPhase = services.reduce((acc: any, service: any) => {
+                        if (!acc[service.phase]) acc[service.phase] = [];
+                        acc[service.phase].push(service);
+                        return acc;
+                      }, {});
+
+                      return Object.entries(servicesByPhase).map(([phase, phaseServices]: [string, any]) => (
+                        <div key={phase} className="border rounded-lg p-4">
+                          <h3 className="font-semibold text-gray-900 mb-3 capitalize">
+                            {phase.replace('_', ' ')} Phase Services
+                          </h3>
+                          <div className="grid gap-3">
+                            {(phaseServices as any[]).map((service: any) => {
+                              const isSelected = selectedPassengerServices[currentServicePassenger]?.find(
+                                (s: any) => s.id === service.id,
+                              );
+                              return (
+                                <div
+                                  key={service.id}
+                                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? "border-airline-blue bg-blue-50"
+                                      : "border-gray-200 hover:border-gray-300"
+                                  }`}
+                                  onClick={() => handlePassengerServiceToggle(service, currentServicePassenger)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2">
+                                        <h4 className="font-semibold">
+                                          {service.name}
+                                        </h4>
+                                        <Badge variant="secondary" className="text-xs">
+                                          {service.phase}
+                                        </Badge>
+                                        {service.tag && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {service.tag.replace("_", " ")}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-sm text-gray-600 mt-1">
+                                        {service.description}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="font-bold text-airline-blue">
+                                        ${parseFloat(service.price).toFixed(2)}
+                                      </p>
+                                      {isSelected && (
+                                        <div className="w-5 h-5 bg-airline-blue rounded-full flex items-center justify-center mt-1 ml-auto">
+                                          <span className="text-white text-xs">✓</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+
+                  {(() => {
+                    const allSelectedServices = Object.values(selectedPassengerServices).flat();
+                    return allSelectedServices.length > 0 && (
+                      <div className="border-t pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold">
+                            Selected Services ({allSelectedServices.length})
+                          </h4>
+                          <div className="text-right">
+                            <p className="text-sm text-gray-600">
+                              Cost Breakdown
+                            </p>
+                            <p className="text-sm">
+                              Services: ${getPassengerServicesTotal().toFixed(2)}
+                            </p>
+                            <p className="text-sm">
+                              Taxes: $
+                              {(getPassengerServicesTotal() * 0.12).toFixed(2)}
+                            </p>
+                            <p className="font-bold text-airline-blue text-lg">
+                              Total: $
+                              {(getPassengerServicesTotal() * 1.12).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Show services grouped by passenger */}
+                        <div className="space-y-3 mb-4">
+                          {Object.entries(selectedPassengerServices).map(([passengerIndex, services]: [string, any]) => {
+                            if (!services || services.length === 0) return null;
+                            const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
+                            const passenger = passengers[parseInt(passengerIndex)];
+                            
+                            return (
+                              <div key={passengerIndex} className="bg-gray-50 p-3 rounded-lg">
+                                <h5 className="font-medium text-gray-900 mb-2">
+                                  {passenger?.firstName} {passenger?.lastName}
+                                </h5>
+                                <div className="space-y-1">
+                                  {services.map((service: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between text-sm">
+                                      <span>{service.name}</span>
+                                      <span className="font-medium">${parseFloat(service.price).toFixed(2)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                         <div className="space-y-4">
                           <div>
@@ -927,18 +1086,19 @@ export default function OrderDetails() {
                           onClick={handleAddSelectedServices}
                           disabled={
                             addServicesMutation.isPending ||
-                            selectedServices.length === 0
+                            Object.values(selectedPassengerServices).flat().length === 0
                           }
                           className="flex-1 bg-green-600 hover:bg-green-700"
                         >
                           {addServicesMutation.isPending
                             ? "Processing Payment..."
-                            : `Proceed to Payment - $${(getTotalAdditionalCost() * 1.12).toFixed(2)}`}
+                            : `Proceed to Payment - $${(getPassengerServicesTotal() * 1.12).toFixed(2)}`}
                         </Button>
                         <Button
                           variant="outline"
                           onClick={() => {
                             setSelectedServices([]);
+                            setSelectedPassengerServices({});
                             setShowAddServices(false);
                           }}
                         >
@@ -946,7 +1106,8 @@ export default function OrderDetails() {
                         </Button>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -980,19 +1141,19 @@ export default function OrderDetails() {
                   </h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Services ({selectedServices.length} items)</span>
-                      <span>${getTotalAdditionalCost().toFixed(2)}</span>
+                      <span>Services ({Object.values(selectedPassengerServices).flat().length} items)</span>
+                      <span>${getPassengerServicesTotal().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Taxes & Fees (12%)</span>
                       <span>
-                        ${(getTotalAdditionalCost() * 0.12).toFixed(2)}
+                        ${(getPassengerServicesTotal() * 0.12).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between font-bold border-t pt-1">
                       <span>Total Amount</span>
                       <span>
-                        ${(getTotalAdditionalCost() * 1.12).toFixed(2)}
+                        ${(getPassengerServicesTotal() * 1.12).toFixed(2)}
                       </span>
                     </div>
                   </div>

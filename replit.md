@@ -185,3 +185,10 @@ The architecture supports a scalable, maintainable airline management system wit
   - **ENHANCED BOARDING PASS DISPLAY**: Each passenger gets personalized boarding pass with their own seat number and name
   - **IMPROVED USER EXPERIENCE**: Clear visual feedback showing which passenger is currently selecting seats with passenger tabs
   - Fixed React Fragment warning in SeatMap component by removing invalid data-replit-metadata prop
+- **Passenger-Specific Service Display & Enhanced Service Addition Modal (January 2025)**:
+  - **ORDER DETAILS REORGANIZATION**: Services now display per individual passenger in Additional Services section, matching order summary format
+  - **PASSENGER-SPECIFIC SERVICE SELECTION**: Enhanced service addition modal with passenger tabs for targeted service assignment
+  - **MULTI-PASSENGER SERVICE MODAL**: Added passenger selection tabs in service addition modal showing which passenger services are being selected for
+  - **PHASE-BASED SERVICE ORGANIZATION**: Services grouped by phases (booking, pre-boarding, in-flight, arrival) in addition modal
+  - **ENHANCED SERVICE PAYMENT**: Updated payment flow to handle passenger-specific service selections with proper cost calculations
+  - **IMPROVED SERVICE TRACKING**: Services tracked per passenger with clear visual separation and passenger-specific grouping throughout the flow
