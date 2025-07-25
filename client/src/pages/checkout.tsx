@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
@@ -29,7 +29,6 @@ const passengerSchema = z.object({
 });
 
 const checkoutSchema = z.object({
-  passengers: z.array(passengerSchema),
   agreeTerms: z.boolean().refine(val => val === true, 'You must agree to the terms and conditions'),
   agreePrivacy: z.boolean().refine(val => val === true, 'You must agree to the privacy policy'),
 });
@@ -59,39 +58,18 @@ export default function Checkout() {
   const form = useForm({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      passengers: Array.from({ length: passengerCount }, (_, index) => ({
-        firstName: index === 0 ? user?.firstName || '' : '',
-        lastName: index === 0 ? user?.lastName || '' : '',
-        passportNumber: index === 0 ? user?.passportNumber || '' : '',
-        dateOfBirth: index === 0 ? user?.dateOfBirth || '' : '',
-        passportExpiry: index === 0 ? user?.passportExpiry || '' : '',
-      })),
       agreeTerms: false,
       agreePrivacy: false,
     },
   });
 
-  // Initialize selected passengers when savedPassengers loads
+  // Initialize selected passengers - start with empty array to allow manual selection
   useEffect(() => {
-    if (savedPassengers.length > 0 && selectedPassengers.length === 0) {
-      const initialSelection = Array.from({ length: passengerCount }, (_, index) => {
-        if (index < savedPassengers.length) {
-          return { ...savedPassengers[index], isExisting: true };
-        }
-        return {
-          firstName: index === 0 ? user?.firstName || '' : '',
-          lastName: index === 0 ? user?.lastName || '' : '',
-          email: index === 0 ? user?.email || '' : '',
-          phone: index === 0 ? user?.phone || '' : '',
-          passportNumber: index === 0 ? user?.passportNumber || '' : '',
-          dateOfBirth: index === 0 ? user?.dateOfBirth || '' : '',
-          passportExpiry: index === 0 ? user?.passportExpiry || '' : '',
-          isExisting: false,
-        };
-      });
+    if (selectedPassengers.length === 0) {
+      const initialSelection = Array.from({ length: passengerCount }, () => null);
       setSelectedPassengers(initialSelection);
     }
-  }, [savedPassengers, passengerCount, user]);
+  }, [passengerCount]);
 
   // Mutation to save new passenger
   const savePassengerMutation = useMutation({
@@ -169,6 +147,16 @@ export default function Checkout() {
   });
 
   const onSubmit = async (data: any) => {
+    // Validate that all passengers are selected
+    if (selectedPassengers.some(p => !p || !p.firstName || !p.lastName || !p.passportNumber || !p.dateOfBirth || !p.passportExpiry)) {
+      toast({
+        title: 'Missing Passenger Information',
+        description: 'Please complete all passenger information before proceeding.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Save new passengers to database for future use
     const passengersToSave = selectedPassengers.filter(p => !p.isExisting && p.firstName && p.lastName);
     
@@ -526,6 +514,11 @@ export default function Checkout() {
                  editingPassenger?.type === 'edit' ? 'Edit Passenger Information' : 
                  'Add New Passenger'}
               </DialogTitle>
+              <DialogDescription>
+                {editingPassenger?.type === 'select' ? 'Choose from your saved passenger information' : 
+                 editingPassenger?.type === 'edit' ? 'Update passenger details' : 
+                 'Enter new passenger information for this booking'}
+              </DialogDescription>
             </DialogHeader>
             
             {editingPassenger?.type === 'select' ? (
