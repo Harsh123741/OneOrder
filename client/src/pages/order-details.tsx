@@ -191,16 +191,14 @@ export default function OrderDetails() {
   const removeServiceMutation = useMutation({
     mutationFn: async ({ serviceId, passengerId }: { serviceId: number; passengerId?: number }) => {
       const response = await apiRequest(
+        "POST",
         `/api/orders/${orderNumber}/remove-service`,
         {
-          method: "POST",
-          body: JSON.stringify({
-            serviceId,
-            passengerId,
-          }),
+          serviceId,
+          passengerId,
         },
       );
-      return response;
+      return response.json();
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders", orderNumber] });
