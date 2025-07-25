@@ -395,15 +395,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Check for duplicate services in the order
-      const existingServices = order.selectedServices as any[] || [];
-      const existingServiceIds = existingServices.map((s: any) => s.id);
-      const duplicateServices = validatedServices.filter(s => existingServiceIds.includes(s.id));
-      
-      if (duplicateServices.length > 0) {
-        return res.status(400).json({ 
-          message: "Some services are already added to this order", 
-          duplicateServices: duplicateServices.map(s => s.name)
+      // Group services by passenger ID for multi-passenger orders
+      const servicesByPassenger = {};
+      for (const service of validatedServices) {
+        const passengerId = service.passengerId || 0;
+        if (!servicesByPassenger[passengerId]) {
+          servicesByPassenger[passengerId] = [];
+        }
+        servicesByPassenger[passengerId].push(service);
+      }
+
+      let updatedOrder = null;
+
+      // Handle multi-passenger orders
+      if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+        const passengers = order.passengerInfo as any[];
+        
+        // Add services to specific passengers
+        for (const [passengerIndex, passengerServices] of Object.entries(servicesByPassenger)) {
+          const index = parseInt(passengerIndex);
+          if (passengers[index]) {
+            if (!passengers[index].services) {
+              passengers[index].services = [];
+            }
+            
+            // Check for duplicate services for this passenger
+            const existingPassengerServices = passengers[index].services || [];
+            const existingServiceIds = existingPassengerServices.map((s: any) => s.id);
+            const duplicateServices = (passengerServices as any[]).filter(s => existingServiceIds.includes(s.id));
+            
+            if (duplicateServices.length > 0) {
+              return res.status(400).json({ 
+                message: `Some services are already added for passenger ${index + 1}`, 
+                duplicateServices: duplicateServices.map(s => s.name)
+              });
+            }
+            
+            passengers[index].services = [...existingPassengerServices, ...passengerServices];
+          }
+        }
+        
+        updatedOrder = await storage.updateOrder(order.id, {
+          passengerInfo: passengers
+        });
+      } else {
+        // Handle single passenger or legacy orders
+        const existingServices = order.selectedServices as any[] || [];
+        const existingServiceIds = existingServices.map((s: any) => s.id);
+        const duplicateServices = validatedServices.filter(s => existingServiceIds.includes(s.id));
+        
+        if (duplicateServices.length > 0) {
+          return res.status(400).json({ 
+            message: "Some services are already added to this order", 
+            duplicateServices: duplicateServices.map(s => s.name)
+          });
+        }
+
+        const updatedServices = [...existingServices, ...validatedServices];
+        updatedOrder = await storage.updateOrder(order.id, {
+          selectedServices: updatedServices
         });
       }
 
@@ -416,16 +466,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Payment processed: User ${req.user.userId}, Amount: ${totalCost.toFixed(2)}, Method: ${paymentMethod}, Description: Payment for additional services on order ${orderNumber}`);
       }
       
-      // Update order with additional services and recalculate totals
-      const updatedServices = [...existingServices, ...validatedServices];
-      
+      // Update order totals
       const currentSubtotal = parseFloat(order.subtotal);
       const newSubtotal = currentSubtotal + additionalServicesPrice;
       const newTaxes = parseFloat(order.taxes) + taxAmount;
       const newTotal = parseFloat(order.total) + totalCost;
       
-      const updatedOrder = await storage.updateOrder(order.id, {
-        selectedServices: updatedServices,
+      updatedOrder = await storage.updateOrder(order.id, {
         subtotal: newSubtotal.toFixed(2),
         taxes: newTaxes.toFixed(2),
         total: newTotal.toFixed(2),
@@ -453,7 +500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/:orderNumber/remove-service", authenticateToken, async (req: any, res) => {
     try {
       const { orderNumber } = req.params;
-      const { serviceId } = req.body;
+      const { serviceId, passengerId } = req.body;
       
       if (!serviceId) {
         return res.status(400).json({ message: "Service ID is required" });
@@ -469,12 +516,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Access denied" });
       }
 
-      // Find the service in the order
-      const services = order.selectedServices as any[];
-      const serviceToRemove = services?.find((s: any) => s.id === serviceId);
-      
-      if (!serviceToRemove) {
-        return res.status(404).json({ message: "Service not found in this order" });
+      let serviceToRemove = null;
+      let updatedOrder = null;
+
+      // Handle passenger-specific service removal for multi-passenger orders
+      if (passengerId !== undefined && order.passengerInfo && Array.isArray(order.passengerInfo)) {
+        const passengers = order.passengerInfo as any[];
+        const passenger = passengers[passengerId];
+        
+        if (!passenger || !passenger.services || !Array.isArray(passenger.services)) {
+          return res.status(404).json({ message: "Service not found for this passenger" });
+        }
+
+        serviceToRemove = passenger.services.find((s: any) => s.id === serviceId);
+        if (!serviceToRemove) {
+          return res.status(404).json({ message: "Service not found for this passenger" });
+        }
+
+        // Remove service from passenger's services
+        passenger.services = passenger.services.filter((s: any) => s.id !== serviceId);
+        
+        // Update the order with modified passenger info
+        updatedOrder = await storage.updateOrder(order.id, {
+          passengerInfo: passengers
+        });
+      } else {
+        // Handle single passenger or legacy orders
+        const services = order.selectedServices as any[];
+        serviceToRemove = services?.find((s: any) => s.id === serviceId);
+        
+        if (!serviceToRemove) {
+          return res.status(404).json({ message: "Service not found in this order" });
+        }
+
+        // Remove service from order
+        updatedOrder = await storage.removeServiceFromOrder(order.id, serviceId);
+      }
+
+      if (!updatedOrder || !serviceToRemove) {
+        return res.status(500).json({ message: "Failed to remove service" });
       }
 
       // Calculate refund amount
@@ -482,13 +562,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taxRefund = servicePrice * 0.12;
       const totalRefund = servicePrice + taxRefund;
 
-      // Remove service from order and update totals
-      const updatedOrder = await storage.removeServiceFromOrder(order.id, serviceId);
-      if (!updatedOrder) {
-        return res.status(500).json({ message: "Failed to remove service" });
-      }
+      // Update order totals (subtract the removed service cost)
+      const newSubtotal = parseFloat(updatedOrder.subtotal) - servicePrice;
+      const newTaxes = newSubtotal * 0.12;
+      const newTotal = newSubtotal + newTaxes;
 
-      // Process refund (simulated - in real system would refund via original payment method)
+      await storage.updateOrder(order.id, {
+        subtotal: newSubtotal.toFixed(2),
+        taxes: newTaxes.toFixed(2),
+        total: newTotal.toFixed(2),
+      });
+
+      // Process refund to wallet
       await storage.addWalletTransaction(req.user.userId, totalRefund, 'credit', `Refund for removed service: ${serviceToRemove.name} from order ${orderNumber}`);
 
       res.json({
@@ -500,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           servicePrice: servicePrice.toFixed(2),
           taxRefund: taxRefund.toFixed(2),
           totalRefund: totalRefund.toFixed(2),
-          refundMethod: 'original_payment_method'
+          refundMethod: 'wallet'
         }
       });
     } catch (error) {

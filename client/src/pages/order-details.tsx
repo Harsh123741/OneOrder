@@ -188,32 +188,34 @@ export default function OrderDetails() {
   });
 
   const removeServiceMutation = useMutation({
-    mutationFn: async (serviceId: number) => {
+    mutationFn: async ({ serviceId, passengerId }: { serviceId: number; passengerId?: number }) => {
       const response = await apiRequest(
-        "POST",
         `/api/orders/${orderNumber}/remove-service`,
         {
-          serviceId,
+          method: "POST",
+          body: JSON.stringify({
+            serviceId,
+            passengerId,
+          }),
         },
       );
-      return response.json();
+      return response;
     },
     onSuccess: async (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders", orderNumber] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       await refreshBalance(); // Update wallet balance immediately
       // Force a second refresh after a short delay to ensure balance is updated
       setTimeout(() => refreshBalance(), 500);
       toast({
         title: "Service Removed",
-        description: `"${data.refundDetails.serviceName}" removed. $${data.refundDetails.totalRefund} refund processed via ${data.refundDetails.refundMethod}.`,
+        description: `Service removed successfully. Refund processed to your wallet.`,
       });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         title: "Failed to Remove Service",
-        description: "Please try again or contact customer service.",
+        description: error?.message || "Please try again or contact customer service.",
         variant: "destructive",
       });
     },
@@ -297,7 +299,7 @@ export default function OrderDetails() {
     return true;
   };
 
-  const handleRemoveService = async (serviceId: number) => {
+  const handleRemoveService = async (serviceId: number, passengerId?: number) => {
     const confirmed = await showConfirmation({
       title: "Remove Service",
       description:
@@ -308,7 +310,7 @@ export default function OrderDetails() {
     });
 
     if (confirmed) {
-      removeServiceMutation.mutate(serviceId);
+      removeServiceMutation.mutate({ serviceId, passengerId });
     }
   };
 
@@ -821,7 +823,7 @@ export default function OrderDetails() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => handleRemoveService(service.id)}
+                                    onClick={() => handleRemoveService(service.id, passengerIndex)}
                                     disabled={removeServiceMutation.isPending}
                                     className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
                                   >
