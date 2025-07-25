@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { useWallet } from "@/contexts/wallet-context";
+import { useConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,8 +44,10 @@ export default function OrderDetails() {
   const { orderNumber } = useParams();
   const [, setLocation] = useLocation();
   const { user, isAuthenticated } = useAuth();
+  const { balance, refreshBalance } = useWallet();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { ConfirmationDialog, showConfirmation } = useConfirmationDialog();
 
   const {
     data: order,
@@ -66,6 +70,8 @@ export default function OrderDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      refreshBalance(); // Update wallet balance immediately
       toast({
         title: "Order Cancelled",
         description:
@@ -82,11 +88,18 @@ export default function OrderDetails() {
     },
   });
 
-  const handleCancel = () => {
-    if (
-      order &&
-      window.confirm("Are you Sure you want to cancel this order?")
-    ) {
+  const handleCancel = async () => {
+    if (!order) return;
+    
+    const confirmed = await showConfirmation({
+      title: "Cancel Order",
+      description: "Are you sure you want to cancel this order? You will receive a full refund in your wallet.",
+      confirmText: "Yes, Cancel Order",
+      cancelText: "Keep Order",
+      variant: "destructive"
+    });
+    
+    if (confirmed) {
       cancelOrderMutation.mutate(order.id);
     }
   };
@@ -149,6 +162,8 @@ export default function OrderDetails() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      refreshBalance(); // Update wallet balance immediately
       setShowAddServices(false);
       setSelectedServices([]);
       toast({
@@ -180,6 +195,8 @@ export default function OrderDetails() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      refreshBalance(); // Update wallet balance immediately
       toast({
         title: "Service Removed",
         description: `"${data.refundDetails.serviceName}" removed. $${data.refundDetails.totalRefund} refund processed via ${data.refundDetails.refundMethod}.`,
@@ -247,12 +264,16 @@ export default function OrderDetails() {
     return true;
   };
 
-  const handleRemoveService = (serviceId: number) => {
-    if (
-      window.confirm(
-        "Are you sure you want to remove this service? You will receive a full refund via your original payment method.",
-      )
-    ) {
+  const handleRemoveService = async (serviceId: number) => {
+    const confirmed = await showConfirmation({
+      title: "Remove Service",
+      description: "Are you sure you want to remove this service? You will receive a full refund in your wallet.",
+      confirmText: "Yes, Remove Service",
+      cancelText: "Keep Service",
+      variant: "destructive"
+    });
+    
+    if (confirmed) {
       removeServiceMutation.mutate(serviceId);
     }
   };
@@ -510,7 +531,8 @@ export default function OrderDetails() {
               return passengers.map((passenger: any, index: number) => (
                 <div
                   key={index}
-                  className={`bg-gray-50 rounded-lg p-4 ${index > 0 ? "mt-4" : ""}`}
+                  className={`bg-gray-50 rounded-lg p-4
+                  ${index > 0 ? "mt-4" : ""}`}
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold text-lg text-gray-900">
@@ -884,6 +906,8 @@ export default function OrderDetails() {
                               <p className="text-sm text-green-800">
                                 <strong>Wallet Payment:</strong> Amount will be
                                 deducted from your wallet balance.
+                                <br />
+                                <span className="font-medium">Current balance: ${balance}</span>
                               </p>
                             </div>
                           )}
@@ -1246,6 +1270,9 @@ export default function OrderDetails() {
           </Card>
         )}
       </div>
+      
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog />
     </div>
   );
 }

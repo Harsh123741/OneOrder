@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+import { WalletProvider } from "@/contexts/wallet-context";
 
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
@@ -19,6 +20,7 @@ import OrderSuccess from "@/pages/order-success";
 import OrderDetails from "@/pages/order-details";
 import MyOrders from "@/pages/my-orders";
 import CheckIn from "@/pages/check-in";
+import BoardingPassSuccess from "@/pages/boarding-pass-success";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import NotFound from "@/pages/not-found";
@@ -37,6 +39,7 @@ function Router() {
       <Route path="/order/:orderNumber" component={OrderDetails} />
       <Route path="/my-orders" component={MyOrders} />
       <Route path="/check-in" component={CheckIn} />
+      <Route path="/boarding-pass-success" component={BoardingPassSuccess} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
       <Route component={NotFound} />
@@ -48,17 +51,19 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <div className="min-h-screen flex flex-col">
-            <Header />
-            <main className="flex-1">
-              <Router />
-            </main>
-            <Footer />
-            <CartSidebar />
-          </div>
-          <Toaster />
-        </TooltipProvider>
+        <WalletProvider>
+          <TooltipProvider>
+            <div className="min-h-screen flex flex-col">
+              <Header />
+              <main className="flex-1">
+                <Router />
+              </main>
+              <Footer />
+              <CartSidebar />
+            </div>
+            <Toaster />
+          </TooltipProvider>
+        </WalletProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

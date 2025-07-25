@@ -20,30 +20,32 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
     } else {
       // Store selected flight and navigate directly to services
       sessionStorage.setItem("selectedFlight", JSON.stringify(flight));
-      
+
       // Get passenger count for proper pricing
       const storedSearch = sessionStorage.getItem("flightSearch");
-      const passengerCount = storedSearch ? JSON.parse(storedSearch).passengers : 1;
-      
+      const passengerCount = storedSearch
+        ? JSON.parse(storedSearch).passengers
+        : 1;
+
       // Add flight to cart for proper pricing calculation
       addFlight(flight, [], passengerCount);
-      
+
       setLocation("/services");
     }
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: false,
     });
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -69,7 +71,9 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 <Plane className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">{flight.airline}</h3>
+                <h3 className="font-semibold text-gray-900">
+                  {flight.airline}
+                </h3>
                 <p className="text-sm text-gray-600">{flight.flightNumber}</p>
               </div>
             </div>
@@ -81,22 +85,26 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 <div className="text-2xl font-bold text-gray-900">
                   {formatTime(flight.departureTime)}
                 </div>
-                <div className="text-sm text-gray-600">{flight.departureAirport}</div>
-                <div className="text-xs text-gray-500">{formatDate(flight.departureTime)}</div>
+                <div className="text-sm text-gray-600">
+                  {flight.departureAirport}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {formatDate(flight.departureTime)}
+                </div>
               </div>
 
               {/* Flight Path */}
               <div className="flex-1 flex flex-col items-center">
-                <div className="text-sm text-gray-600 mb-1">{flight.duration}</div>
+                <div className="text-sm text-gray-600 mb-1">
+                  {flight.duration}
+                </div>
                 <div className="w-full border-t-2 border-dashed border-gray-300 relative">
                   <Plane className="absolute -top-2 left-1/2 transform -translate-x-1/2 h-4 w-4 text-airline-blue bg-white" />
                 </div>
-                <div className="mt-1">
-                  {getStopsBadge(flight.stops)}
-                </div>
+                <div className="mt-1">{getStopsBadge(flight.stops)}</div>
                 {flight.stops > 0 && flight.stopAirports && (
                   <div className="text-xs text-gray-500 mt-1">
-                    via {flight.stopAirports.join(', ')}
+                    via {flight.stopAirports.join(", ")}
                   </div>
                 )}
               </div>
@@ -106,8 +114,12 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 <div className="text-2xl font-bold text-gray-900">
                   {formatTime(flight.arrivalTime)}
                 </div>
-                <div className="text-sm text-gray-600">{flight.arrivalAirport}</div>
-                <div className="text-xs text-gray-500">{formatDate(flight.arrivalTime)}</div>
+                <div className="text-sm text-gray-600">
+                  {flight.arrivalAirport}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {formatDate(flight.arrivalTime)}
+                </div>
               </div>
             </div>
 
@@ -134,15 +146,16 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
             </div>
 
             <div className="space-y-2">
-              <Button 
+              <Button
                 onClick={handleSelectFlight}
                 className="w-full lg:w-auto airline-button-primary"
               >
                 Select Flight
               </Button>
-              
+
               <div className="text-xs text-gray-500">
-                {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)} Class
+                {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
+                Class
               </div>
             </div>
           </div>
@@ -150,7 +163,11 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
 
         {/* Expandable Details */}
         <div className="mt-4 pt-4 border-t border-gray-200">
-          <Button variant="ghost" size="sm" className="text-airline-blue hover:text-blue-700">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-airline-blue hover:text-blue-700"
+          >
             View flight details
           </Button>
         </div>

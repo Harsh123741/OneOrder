@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/hooks/use-auth";
+import { useWallet } from "@/contexts/wallet-context";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Plane, MapPin, Clock, User, Luggage } from "lucide-react";
@@ -26,6 +27,7 @@ type CheckInFormData = z.infer<typeof checkInSchema>;
 export default function CheckIn() {
   const [, setLocation] = useLocation();
   const { user, isAuthenticated } = useAuth();
+  const { balance, refreshBalance } = useWallet();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -107,13 +109,28 @@ export default function CheckIn() {
       return response.json();
     },
     onSuccess: (data) => {
-      setBoardingPassData(data);
-      setShowBoardingPass(true);
+      // Navigate to boarding pass success page with data
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      refreshBalance(); // Update wallet balance if seat upgrade was paid
+      
+      // Store boarding pass data in session storage for the success page
+      sessionStorage.setItem('boardingPassData', JSON.stringify({
+        boardingPassData: data,
+        eligibleOrder,
+        passengerSeats,
+        availableSeats
+      }));
+      
       toast({
         title: "Check-in Complete!",
-        description: "Your boarding pass is ready.",
+        description: "Redirecting to your boarding passes...",
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      
+      // Navigate to boarding pass success page
+      setTimeout(() => {
+        setLocation('/boarding-pass-success');
+      }, 1000);
     },
     onError: () => {
       toast({
@@ -324,6 +341,14 @@ export default function CheckIn() {
                     </div>
                   </div>
                   
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">
+                      <strong>Wallet Payment:</strong> Amount will be deducted from your wallet balance.
+                      <br />
+                      <span className="font-medium">Current balance: ${balance}</span>
+                    </p>
+                  </div>
+                  
                   <div className="flex space-x-2">
                     <Button 
                       onClick={() => setShowPayment(false)}
@@ -335,8 +360,9 @@ export default function CheckIn() {
                     <Button 
                       onClick={handlePaymentConfirm}
                       className="flex-1 airline-button-primary"
+                      disabled={checkInMutation.isPending || parseFloat(balance) < pendingSeatUpgrade.total}
                     >
-                      Pay Now
+                      {checkInMutation.isPending ? "Processing..." : parseFloat(balance) < pendingSeatUpgrade.total ? "Insufficient Balance" : "Pay Now"}
                     </Button>
                   </div>
                 </div>

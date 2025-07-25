@@ -12,24 +12,24 @@ interface OrderCardProps {
   onCancel?: (order: any) => void;
 }
 
-export default function OrderCard({ 
-  order, 
-  onViewDetails, 
-  onCheckIn, 
-  onModify, 
-  onCancel 
+export default function OrderCard({
+  order,
+  onViewDetails,
+  onCheckIn,
+  onModify,
+  onCancel,
 }: OrderCardProps) {
   const [, setLocation] = useLocation();
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case "confirmed":
         return <Badge className="bg-green-100 text-green-800">Confirmed</Badge>;
-      case 'pending':
+      case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-      case 'cancelled':
+      case "cancelled":
         return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>;
-      case 'completed':
+      case "completed":
         return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
@@ -52,15 +52,6 @@ export default function OrderCard({
     }
   };
 
-  const handleModify = () => {
-    if (onModify) {
-      onModify(order);
-    } else {
-      // Navigate to modification flow
-      setLocation(`/order/${order.orderNumber}/modify`);
-    }
-  };
-
   const handleCancel = () => {
     if (onCancel) {
       onCancel(order);
@@ -68,17 +59,17 @@ export default function OrderCard({
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(dateString).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
       hour12: false,
     });
   };
@@ -90,11 +81,13 @@ export default function OrderCard({
     departureAirport: "JFK",
     arrivalAirport: "LAX",
     departureTime: "2024-12-15T08:30:00Z",
-    duration: "5h 30m"
+    duration: "5h 30m",
   };
 
   return (
-    <Card className={`airline-card ${order.canCheckIn ? 'border-yellow-200 bg-yellow-50' : ''}`}>
+    <Card
+      className={`airline-card ${order.canCheckIn ? "border-yellow-200 bg-yellow-50" : ""}`}
+    >
       <CardContent className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
@@ -109,7 +102,10 @@ export default function OrderCard({
           <div className="text-right">
             {getStatusBadge(order.status)}
             <p className="text-sm text-gray-600 mt-1">
-              Total: <span className="font-bold text-lg text-airline-blue">${parseFloat(order.total).toFixed(2)}</span>
+              Total:{" "}
+              <span className="font-bold text-lg text-airline-blue">
+                ${parseFloat(order.total).toFixed(2)}
+              </span>
             </p>
           </div>
         </div>
@@ -120,11 +116,13 @@ export default function OrderCard({
             <div className="flex items-center space-x-2 mb-2">
               <Plane className="h-4 w-4 text-airline-blue" />
               <span className="font-medium text-gray-900">
-                {mockFlightData.departureAirport} → {mockFlightData.arrivalAirport}
+                {mockFlightData.departureAirport} →{" "}
+                {mockFlightData.arrivalAirport}
               </span>
             </div>
             <p className="text-sm text-gray-600">
-              {formatDate(mockFlightData.departureTime)} • {formatTime(mockFlightData.departureTime)}
+              {formatDate(mockFlightData.departureTime)} •{" "}
+              {formatTime(mockFlightData.departureTime)}
             </p>
             <p className="text-sm text-gray-600">
               {mockFlightData.airline} {mockFlightData.flightNumber}
@@ -140,7 +138,7 @@ export default function OrderCard({
               {order.passengerInfo?.firstName} {order.passengerInfo?.lastName}
             </p>
             <p className="text-sm text-gray-600">
-              Seat {order.seatId ? '12E' : 'Not selected'} • Economy
+              Seat {order.seatId ? "12E" : "Not selected"} • Economy
             </p>
           </div>
 
@@ -170,7 +168,7 @@ export default function OrderCard({
             View Details
           </Button>
 
-          {order.status === 'confirmed' && !order.isCheckedIn && (
+          {order.status === "confirmed" && !order.isCheckedIn && (
             <>
               {order.canCheckIn && (
                 <Button
@@ -180,18 +178,10 @@ export default function OrderCard({
                   Web Check-in
                 </Button>
               )}
-              
-              <Button
-                variant="outline"
-                onClick={handleModify}
-                className="text-green-600 border-green-600 hover:bg-green-50"
-              >
-                Modify Services
-              </Button>
             </>
           )}
 
-          {order.status === 'pending' && (
+          {order.status === "pending" && (
             <Button
               onClick={handleCancel}
               variant="outline"
@@ -206,7 +196,8 @@ export default function OrderCard({
         {order.canCheckIn && !order.isCheckedIn && (
           <div className="mt-4 p-3 bg-yellow-100 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              <strong>Check-in now available!</strong> Complete your check-in up to 24 hours before departure.
+              <strong>Check-in now available!</strong> Complete your check-in up
+              to 24 hours before departure.
             </p>
           </div>
         )}

@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -11,7 +11,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
-import { Plane, ShoppingCart, User, LogOut, Settings, CreditCard } from "lucide-react";
+import {
+  Plane,
+  ShoppingCart,
+  User,
+  LogOut,
+  Settings,
+  CreditCard,
+} from "lucide-react";
 
 export default function Header() {
   const [location] = useLocation();
@@ -35,11 +42,13 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3">
             <Plane className="h-8 w-8 text-airline-blue" />
-            <span className="text-xl font-bold text-gray-900">SkyLink Airlines</span>
+            <span className="text-xl font-bold text-gray-900">
+              SkyLink Airlines
+            </span>
           </Link>
 
           {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="md:flex items-center space-x-4 sm:space-x-8">
             {navigation.map((item) => (
               <Link
                 key={item.name}
@@ -66,8 +75,8 @@ export default function Header() {
             >
               <ShoppingCart className="h-5 w-5" />
               {itemCount > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs"
                 >
                   {itemCount}
@@ -79,10 +88,14 @@ export default function Header() {
             {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                  <Button
+                    variant="ghost"
+                    className="relative h-8 w-8 rounded-full"
+                  >
                     <Avatar className="h-8 w-8">
                       <AvatarFallback>
-                        {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                        {user.firstName.charAt(0)}
+                        {user.lastName.charAt(0)}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -90,7 +103,9 @@ export default function Header() {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <div className="flex items-center justify-start gap-2 p-2">
                     <div className="flex flex-col space-y-1 leading-none">
-                      <p className="font-medium">{user.firstName} {user.lastName}</p>
+                      <p className="font-medium">
+                        {user.firstName} {user.lastName}
+                      </p>
                       <p className="w-[200px] truncate text-sm text-muted-foreground">
                         {user.email}
                       </p>
@@ -101,7 +116,10 @@ export default function Header() {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/my-orders" className="w-full flex items-center">
+                    <Link
+                      href="/my-orders"
+                      className="w-full flex items-center"
+                    >
                       <CreditCard className="mr-2 h-4 w-4" />
                       My Bookings
                     </Link>

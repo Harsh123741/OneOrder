@@ -4,7 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import FlightCard from "@/components/flight/flight-card";
@@ -29,10 +35,10 @@ export default function Flights() {
     if (stored) {
       const params = JSON.parse(stored);
       // Ensure dates are properly formatted
-      if (params.departureDate && !params.departureDate.includes('T')) {
+      if (params.departureDate && !params.departureDate.includes("T")) {
         params.departureDate = `${params.departureDate}T00:00:00Z`;
       }
-      if (params.returnDate && !params.returnDate.includes('T')) {
+      if (params.returnDate && !params.returnDate.includes("T")) {
         params.returnDate = `${params.returnDate}T00:00:00Z`;
       }
       setSearchParams(params);
@@ -43,11 +49,19 @@ export default function Flights() {
   }, [setLocation]);
 
   // Fetch flights based on search parameters
-  const { data: flights = [], isLoading, error } = useQuery({
+  const {
+    data: flights = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["/api/flights/search", searchParams],
     queryFn: async () => {
       if (!searchParams) return [];
-      const response = await apiRequest("POST", "/api/flights/search", searchParams);
+      const response = await apiRequest(
+        "POST",
+        "/api/flights/search",
+        searchParams,
+      );
       return response.json();
     },
     enabled: !!searchParams,
@@ -57,12 +71,18 @@ export default function Flights() {
   const filteredFlights = flights
     .filter((flight: any) => {
       const price = parseFloat(flight.price);
-      if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false;
-      
-      if (filters.airlines.length > 0 && !filters.airlines.includes(flight.airline)) return false;
-      
-      if (filters.stops.length > 0 && !filters.stops.includes(flight.stops)) return false;
-      
+      if (price < filters.priceRange[0] || price > filters.priceRange[1])
+        return false;
+
+      if (
+        filters.airlines.length > 0 &&
+        !filters.airlines.includes(flight.airline)
+      )
+        return false;
+
+      if (filters.stops.length > 0 && !filters.stops.includes(flight.stops))
+        return false;
+
       return true;
     })
     .sort((a: any, b: any) => {
@@ -72,7 +92,10 @@ export default function Flights() {
         case "duration":
           return a.duration.localeCompare(b.duration);
         case "departure":
-          return new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
+          return (
+            new Date(a.departureTime).getTime() -
+            new Date(b.departureTime).getTime()
+          );
         default:
           return 0;
       }
@@ -83,24 +106,22 @@ export default function Flights() {
   };
 
   const handleAirlineFilter = (airline: string, checked: boolean) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
-      airlines: checked 
+      airlines: checked
         ? [...prev.airlines, airline]
-        : prev.airlines.filter(a => a !== airline)
+        : prev.airlines.filter((a) => a !== airline),
     }));
   };
 
   const handleStopsFilter = (stops: number, checked: boolean) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       stops: checked
         ? [...prev.stops, stops]
-        : prev.stops.filter(s => s !== stops)
+        : prev.stops.filter((s) => s !== stops),
     }));
   };
-
-  const uniqueAirlines = [...new Set(flights.map((f: any) => f.airline))];
 
   if (!searchParams) {
     return <div>Loading...</div>;
@@ -122,47 +143,52 @@ export default function Flights() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Modify Search
                 </Button>
-                
+
                 <div className="mb-4">
                   <h1 className="text-3xl font-bold text-gray-900 mb-2">
                     {searchParams.from} → {searchParams.to}
                   </h1>
-                  
+
                   <div className="flex flex-wrap gap-4 text-gray-600">
                     <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       <span className="font-medium">
-                        {new Date(searchParams.departureDate).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
+                        {new Date(
+                          searchParams.departureDate,
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {searchParams.passengers} {searchParams.passengers === 1 ? 'Adult' : 'Adults'}
+                        {searchParams.passengers}{" "}
+                        {searchParams.passengers === 1 ? "Adult" : "Adults"}
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium capitalize">
-                        {searchParams.class.charAt(0).toUpperCase() + searchParams.class.slice(1)} Class
+                        {searchParams.class.charAt(0).toUpperCase() +
+                          searchParams.class.slice(1)}{" "}
+                        Class
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               <div className="mt-4 lg:mt-0 flex items-center space-x-4">
                 <div className="bg-green-50 px-4 py-2 rounded-lg">
                   <span className="text-sm font-semibold text-green-800">
                     {filteredFlights.length} flights found
                   </span>
                 </div>
-                
+
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="Sort by" />
@@ -191,10 +217,14 @@ export default function Flights() {
               <CardContent className="space-y-6">
                 {/* Price Range */}
                 <div>
-                  <Label className="text-sm font-medium mb-3 block">Price Range</Label>
+                  <Label className="text-sm font-medium mb-3 block">
+                    Price Range
+                  </Label>
                   <Slider
                     value={filters.priceRange}
-                    onValueChange={(value) => setFilters(prev => ({ ...prev, priceRange: value }))}
+                    onValueChange={(value) =>
+                      setFilters((prev) => ({ ...prev, priceRange: value }))
+                    }
                     max={2000}
                     min={0}
                     step={50}
@@ -206,38 +236,30 @@ export default function Flights() {
                   </div>
                 </div>
 
-                {/* Airlines */}
-                <div>
-                  <Label className="text-sm font-medium mb-3 block">Airlines</Label>
-                  <div className="space-y-2">
-                    {uniqueAirlines.map((airline: string) => (
-                      <div key={airline} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={airline}
-                          checked={filters.airlines.includes(airline)}
-                          onCheckedChange={(checked) => handleAirlineFilter(airline, checked as boolean)}
-                        />
-                        <Label htmlFor={airline} className="text-sm cursor-pointer">
-                          {airline}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Stops */}
                 <div>
-                  <Label className="text-sm font-medium mb-3 block">Stops</Label>
+                  <Label className="text-sm font-medium mb-3 block">
+                    Stops
+                  </Label>
                   <div className="space-y-2">
                     {[0, 1, 2].map((stops) => (
                       <div key={stops} className="flex items-center space-x-2">
                         <Checkbox
                           id={`stops-${stops}`}
                           checked={filters.stops.includes(stops)}
-                          onCheckedChange={(checked) => handleStopsFilter(stops, checked as boolean)}
+                          onCheckedChange={(checked) =>
+                            handleStopsFilter(stops, checked as boolean)
+                          }
                         />
-                        <Label htmlFor={`stops-${stops}`} className="text-sm cursor-pointer">
-                          {stops === 0 ? 'Direct' : stops === 1 ? '1 Stop' : '2+ Stops'}
+                        <Label
+                          htmlFor={`stops-${stops}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {stops === 0
+                            ? "Direct"
+                            : stops === 1
+                              ? "1 Stop"
+                              : "2+ Stops"}
                         </Label>
                       </div>
                     ))}
@@ -255,7 +277,9 @@ export default function Flights() {
                   Flight Options
                 </h2>
                 <p className="text-gray-600">
-                  {filteredFlights.length} flight{filteredFlights.length !== 1 ? 's' : ''} available for your search
+                  {filteredFlights.length} flight
+                  {filteredFlights.length !== 1 ? "s" : ""} available for your
+                  search
                 </p>
               </div>
             </div>
@@ -269,7 +293,9 @@ export default function Flights() {
             {error && (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <p className="text-red-600">Error loading flights. Please try again.</p>
+                  <p className="text-red-600">
+                    Error loading flights. Please try again.
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -277,7 +303,9 @@ export default function Flights() {
             {!isLoading && !error && filteredFlights.length === 0 && (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <p className="text-gray-600">No flights found matching your criteria.</p>
+                  <p className="text-gray-600">
+                    No flights found matching your criteria.
+                  </p>
                   <Button
                     variant="outline"
                     onClick={handleBackToSearch}
@@ -291,8 +319,11 @@ export default function Flights() {
 
             <div className="space-y-6">
               {filteredFlights.map((flight: any, index: number) => (
-                <div key={flight.id} className="transform transition-all duration-200 hover:scale-[1.02]">
-                  <FlightCard flight={{...flight, searchParams}} />
+                <div
+                  key={flight.id}
+                  className="transform transition-all duration-200 hover:scale-[1.02]"
+                >
+                  <FlightCard flight={{ ...flight, searchParams }} />
                 </div>
               ))}
             </div>
