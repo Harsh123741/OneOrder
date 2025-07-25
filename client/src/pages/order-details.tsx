@@ -158,6 +158,7 @@ export default function OrderDetails() {
           services: services.map((service) => ({
             id: service.id,
             quantity: service.quantity || 1,
+            passengerId: service.passengerId,
           })),
           paymentMethod,
           paymentDetails,

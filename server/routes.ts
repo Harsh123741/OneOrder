@@ -34,6 +34,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.paymentStatus = "pending";
       orderData.canCheckIn = false;
       
+      // Generate order number
+      const orderNumber = 'SL' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      orderData.orderNumber = orderNumber;
+      
+      // Handle passenger-specific services from cart
+      if (orderData.items && Array.isArray(orderData.items)) {
+        const serviceItems = orderData.items.filter((item: any) => item.type === 'service');
+        const passengerInfo = orderData.passengerInfo || [];
+        
+        // Group services by passenger
+        const servicesByPassenger: { [key: number]: any[] } = {};
+        const generalServices: any[] = [];
+        
+        serviceItems.forEach((item: any) => {
+          if (item.passengerId !== undefined && item.passengerId !== null) {
+            if (!servicesByPassenger[item.passengerId]) {
+              servicesByPassenger[item.passengerId] = [];
+            }
+            servicesByPassenger[item.passengerId].push({
+              id: item.id,
+              name: item.name,
+              price: parseFloat(item.price),
+              quantity: item.quantity || 1,
+              description: item.description,
+              phase: item.phase
+            });
+          } else {
+            generalServices.push({
+              id: item.id,
+              name: item.name,
+              price: parseFloat(item.price),
+              quantity: item.quantity || 1,
+              description: item.description,
+              phase: item.phase
+            });
+          }
+        });
+        
+        // Attribute services to specific passengers
+        if (Array.isArray(passengerInfo)) {
+          passengerInfo.forEach((passenger: any, index: number) => {
+            if (servicesByPassenger[index]) {
+              passenger.services = servicesByPassenger[index];
+            }
+          });
+        }
+        
+        // Store general services in selectedServices for backward compatibility
+        orderData.selectedServices = generalServices;
+        orderData.passengerInfo = passengerInfo;
+      }
+      
       // Calculate subtotal and taxes
       const total = parseFloat(orderData.total);
       const subtotal = parseFloat((total / 1.12).toFixed(2));
@@ -47,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(order);
     } catch (error: any) {
       console.error("Error creating draft order:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error, message: error.message });
     }
   });
 
@@ -371,7 +423,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: serviceData.id,
           name: serviceData.name,
           price: parseFloat(serviceData.price),
-          quantity: quantity
+          quantity: quantity,
+          passengerId: service.passengerId // Preserve passenger ID
         });
         
         // Create booking history entry

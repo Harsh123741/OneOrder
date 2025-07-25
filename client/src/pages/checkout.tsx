@@ -203,7 +203,7 @@ export default function Checkout() {
         nationality: p.nationality,
       })),
       flightId: flight?.flightId,
-      selectedServices: items.filter(item => item.type === 'service'),
+      items: items, // Send all items including services with passenger attribution
       total: total,
     };
 
