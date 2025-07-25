@@ -70,6 +70,7 @@ export default function OrderDetails() {
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       await refreshBalance(); // Update wallet balance immediately
       // Force a second refresh after a short delay to ensure balance is updated

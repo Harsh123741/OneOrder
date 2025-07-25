@@ -408,7 +408,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Process payment (simulated - in real system would integrate with payment gateway)
-      await storage.addWalletTransaction(req.user.userId, totalCost, 'debit', `Payment via ${paymentMethod} for additional services on order ${orderNumber}`);
+      // Only deduct from wallet if payment method is 'wallet'
+      if (paymentMethod === 'wallet') {
+        await storage.addWalletTransaction(req.user.userId, totalCost, 'debit', `Payment via ${paymentMethod} for additional services on order ${orderNumber}`);
+      } else {
+        // For other payment methods (bank_transfer, credit_card, etc.), just log the transaction
+        console.log(`Payment processed: User ${req.user.userId}, Amount: ${totalCost.toFixed(2)}, Method: ${paymentMethod}, Description: Payment for additional services on order ${orderNumber}`);
+      }
       
       // Update order with additional services and recalculate totals
       const updatedServices = [...existingServices, ...validatedServices];
