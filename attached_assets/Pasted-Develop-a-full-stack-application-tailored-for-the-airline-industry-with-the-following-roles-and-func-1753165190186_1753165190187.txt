@@ -1,0 +1,38 @@
+Develop a full-stack application tailored for the airline industry with the following roles and functionalities:
+Roles and Responsibilities:
+Passenger:
+Passengers can search for flights without logging in.
+To book a flight, passengers need to log in. Upon clicking "Book Flight," the cart count will increase, mimicking an e-commerce experience.
+Passengers can book either direct flights or interline/connecting flights.
+After selecting a flight, passengers can choose the travelers for whom the booking is being made.
+A seat map will be displayed, allowing passengers to select seats based on class, seat type, and availability. Seats will be styled differently to indicate availability and type.
+Passengers can then proceed to add ancillary services categorized into different phases:
+Booking Phase: Includes services like seat selection, priority boarding, baggage fees, travel insurance, flexible ticket options, meal pre-booking, lounge access, fast-track security, and meet-and-assist services.
+Pre-Boarding Phase: Includes early check-in, excess baggage services, special assistance, pet travel fees, unaccompanied minor services, Wi-Fi, and travel accessories.
+In-Flight Phase: Includes premium cabin upgrades, in-flight meals/snacks, duty-free shopping, entertainment upgrades, and power outlets/charging ports.
+Arrival Phase: Includes meet-and-assist services on arrival, priority baggage handling, ground transportation, immigration fast track, hotel booking assistance, and travel SIM cards/connectivity.
+Services will have tags like "Filling fast," "Recommended," or "Only few left," based on inventory or booking trends.
+Services will be recommended based on the passenger's order history, and offers for services will be displayed.
+Each service will be presented in a card view with an "Add to Cart" button. Adding services will increase the cart count.
+After selecting services, passengers will proceed to the payment page. Upon successful payment, they will be redirected to their homepage.
+On the homepage, passengers can:
+View active orders below the flight search section.
+Click on "View Order" in the active order list to see complete details of the selected order.
+Update the order (add/remove services, excluding flights and seats) or cancel the entire order. Canceling will refund the order amount to the passenger's wallet.
+Perform web check-in after the appropriate date.
+Service Provider:
+Manage and modify the inventory of services.
+Track the current inventory of services.
+Check-in Agent (Flight Crew):
+View passengers based on flight segments and their associated services using the order ID.
+Check in passengers for their booked services.
+Book or modify services on behalf of passengers after check-in or during the flight. Passengers must complete payment to use these services.
+Admin (Accountant):
+Monitor and manage cash flow, orders, and payments in real time.
+Perform administrative tasks related to financial management.
+Technology Stack:
+Frontend: React with TypeScript for building the passenger module's e-commerce-like user interface.
+Backend: Spring Boot for managing business logic and APIs.
+Database: PostgreSQL for data storage and management.
+This application will provide a seamless and intuitive experience for passengers while enabling efficient management of services, inventory, and financial operations for service providers, check-in agents, and administrators.
+ 
