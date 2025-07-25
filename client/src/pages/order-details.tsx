@@ -90,15 +90,16 @@ export default function OrderDetails() {
 
   const handleCancel = async () => {
     if (!order) return;
-    
+
     const confirmed = await showConfirmation({
       title: "Cancel Order",
-      description: "Are you sure you want to cancel this order? You will receive a full refund in your wallet.",
+      description:
+        "Are you sure you want to cancel this order? You will receive a full refund in your wallet.",
       confirmText: "Yes, Cancel Order",
       cancelText: "Keep Order",
-      variant: "destructive"
+      variant: "destructive",
     });
-    
+
     if (confirmed) {
       cancelOrderMutation.mutate(order.id);
     }
@@ -267,14 +268,16 @@ export default function OrderDetails() {
   const handleRemoveService = async (serviceId: number) => {
     const confirmed = await showConfirmation({
       title: "Remove Service",
-      description: "Are you sure you want to remove this service? You will receive a full refund in your wallet.",
+      description:
+        "Are you sure you want to remove this service? You will receive a full refund in your wallet.",
       confirmText: "Yes, Remove Service",
       cancelText: "Keep Service",
-      variant: "destructive"
+      variant: "destructive",
     });
-    
+
     if (confirmed) {
       removeServiceMutation.mutate(serviceId);
+      refreshBalance();
     }
   };
 
@@ -907,7 +910,9 @@ export default function OrderDetails() {
                                 <strong>Wallet Payment:</strong> Amount will be
                                 deducted from your wallet balance.
                                 <br />
-                                <span className="font-medium">Current balance: ${balance}</span>
+                                <span className="font-medium">
+                                  Current balance: ${balance}
+                                </span>
                               </p>
                             </div>
                           )}
@@ -1270,7 +1275,7 @@ export default function OrderDetails() {
           </Card>
         )}
       </div>
-      
+
       {/* Confirmation Dialog */}
       <ConfirmationDialog />
     </div>
