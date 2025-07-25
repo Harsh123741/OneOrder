@@ -101,10 +101,11 @@ export default function CheckIn() {
   };
 
   const checkInMutation = useMutation({
-    mutationFn: async ({ orderNumber, seatId }: { orderNumber: string, seatId?: number }) => {
+    mutationFn: async ({ orderNumber, seatId, passengerSeats }: { orderNumber: string, seatId?: number, passengerSeats?: {[key: number]: any} }) => {
       const response = await apiRequest("POST", "/api/check-in/complete", {
         orderNumber,
         seatId,
+        passengerSeats,
       });
       return response.json();
     },

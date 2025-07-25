@@ -710,74 +710,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Already checked in" });
       }
 
-      let seatUpgradeCost = 0;
-      let upgradeDetails = null;
+      let totalSeatUpgradeCost = 0;
+      let upgradeDetails: any[] = [];
+      let assignedSeats: any[] = [];
 
-      // Handle paid seat upgrades
-      if (seatId) {
+      // Handle multiple passenger seat assignments
+      if (passengerSeats && Object.keys(passengerSeats).length > 0) {
+        for (const [passengerIndex, seat] of Object.entries(passengerSeats)) {
+          const selectedSeat = await storage.getSeat((seat as any).id);
+          if (!selectedSeat || !selectedSeat.isAvailable) {
+            return res.status(400).json({ 
+              message: `Seat ${(seat as any).seatNumber} is not available for passenger ${parseInt(passengerIndex) + 1}` 
+            });
+          }
+
+          // Calculate upgrade cost for premium seats
+          const seatPrice = parseFloat(selectedSeat.price || '0');
+          if (seatPrice > 0) {
+            totalSeatUpgradeCost += seatPrice;
+            upgradeDetails.push({
+              passengerIndex: parseInt(passengerIndex),
+              seatNumber: selectedSeat.seatNumber,
+              seatType: selectedSeat.seatType,
+              seatClass: selectedSeat.seatClass,
+              isExtraLegroom: selectedSeat.isExtraLegroom,
+              cost: seatPrice
+            });
+          }
+
+          // Store assigned seat info
+          assignedSeats.push({
+            passengerId: parseInt(passengerIndex),
+            seatId: selectedSeat.id,
+            seatNumber: selectedSeat.seatNumber,
+            seatType: selectedSeat.seatType,
+            seatClass: selectedSeat.seatClass,
+            isExtraLegroom: selectedSeat.isExtraLegroom
+          });
+
+          // Make seat unavailable
+          await storage.updateSeatAvailability(selectedSeat.id, false);
+        }
+
+        // Process payment for all seat upgrades
+        if (totalSeatUpgradeCost > 0) {
+          const taxAmount = totalSeatUpgradeCost * 0.12;
+          const totalCost = totalSeatUpgradeCost + taxAmount;
+
+          // Deduct from user wallet
+          try {
+            await storage.addWalletTransaction(
+              order.userId!, 
+              totalCost, 
+              'debit', 
+              `Seat upgrades for ${Object.keys(passengerSeats).length} passengers on order ${orderNumber}`
+            );
+
+            // Update order totals with seat upgrade cost
+            const newSubtotal = parseFloat(order.subtotal) + totalSeatUpgradeCost;
+            const newTaxes = parseFloat(order.taxes) + taxAmount;
+            const newTotal = parseFloat(order.total) + totalCost;
+
+            await storage.updateOrder(order.id, {
+              subtotal: newSubtotal.toFixed(2),
+              taxes: newTaxes.toFixed(2),
+              total: newTotal.toFixed(2),
+            });
+          } catch (paymentError) {
+            return res.status(400).json({ 
+              message: "Insufficient wallet balance for seat upgrades",
+              required: totalCost.toFixed(2),
+              upgrades: upgradeDetails
+            });
+          }
+        }
+      } else if (seatId) {
+        // Handle single seat assignment (legacy support)
         const selectedSeat = await storage.getSeat(seatId);
         if (!selectedSeat || !selectedSeat.isAvailable) {
           return res.status(400).json({ message: "Selected seat is not available" });
         }
 
-        // Calculate upgrade cost for premium seats
         const seatPrice = parseFloat(selectedSeat.price || '0');
         if (seatPrice > 0) {
-          seatUpgradeCost = seatPrice;
-          upgradeDetails = {
+          totalSeatUpgradeCost = seatPrice;
+          upgradeDetails.push({
             seatNumber: selectedSeat.seatNumber,
             seatType: selectedSeat.seatType,
             seatClass: selectedSeat.seatClass,
             isExtraLegroom: selectedSeat.isExtraLegroom,
             cost: seatPrice
-          };
+          });
 
-          // Process payment for seat upgrade
-          if (seatUpgradeCost > 0) {
-            const taxAmount = seatUpgradeCost * 0.12;
-            const totalCost = seatUpgradeCost + taxAmount;
+          const taxAmount = totalSeatUpgradeCost * 0.12;
+          const totalCost = totalSeatUpgradeCost + taxAmount;
 
-            // Deduct from user wallet
-            try {
-              await storage.addWalletTransaction(
-                order.userId!, 
-                totalCost, 
-                'debit', 
-                `Seat upgrade to ${selectedSeat.seatNumber} for order ${orderNumber}`
-              );
+          try {
+            await storage.addWalletTransaction(
+              order.userId!, 
+              totalCost, 
+              'debit', 
+              `Seat upgrade to ${selectedSeat.seatNumber} for order ${orderNumber}`
+            );
 
-              // Update order totals with seat upgrade cost
-              const newSubtotal = parseFloat(order.subtotal) + seatUpgradeCost;
-              const newTaxes = parseFloat(order.taxes) + taxAmount;
-              const newTotal = parseFloat(order.total) + totalCost;
+            const newSubtotal = parseFloat(order.subtotal) + totalSeatUpgradeCost;
+            const newTaxes = parseFloat(order.taxes) + taxAmount;
+            const newTotal = parseFloat(order.total) + totalCost;
 
-              await storage.updateOrder(order.id, {
-                subtotal: newSubtotal.toFixed(2),
-                taxes: newTaxes.toFixed(2),
-                total: newTotal.toFixed(2),
-              });
-            } catch (paymentError) {
-              return res.status(400).json({ 
-                message: "Insufficient wallet balance for seat upgrade",
-                required: totalCost.toFixed(2),
-                upgrade: upgradeDetails
-              });
-            }
+            await storage.updateOrder(order.id, {
+              subtotal: newSubtotal.toFixed(2),
+              taxes: newTaxes.toFixed(2),
+              total: newTotal.toFixed(2),
+            });
+          } catch (paymentError) {
+            return res.status(400).json({ 
+              message: "Insufficient wallet balance for seat upgrade",
+              required: totalCost.toFixed(2)
+            });
           }
         }
 
-        // Make old seat available if exists
+        assignedSeats.push({
+          passengerId: 0,
+          seatId: selectedSeat.id,
+          seatNumber: selectedSeat.seatNumber,
+          seatType: selectedSeat.seatType,
+          seatClass: selectedSeat.seatClass,
+          isExtraLegroom: selectedSeat.isExtraLegroom
+        });
+
         if (order.seatId) {
           await storage.updateSeatAvailability(order.seatId, true);
         }
-        // Make new seat unavailable
         await storage.updateSeatAvailability(seatId, false);
       }
 
       // Create update object
       const updates: any = {
         isCheckedIn: true,
-        checkInTime: new Date()
+        checkInTime: new Date(),
+        assignedSeats: assignedSeats
       };
 
       if (seatId) {
@@ -788,15 +860,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: seatUpgradeCost > 0 ? 
-          `Check-in completed with seat upgrade. Charged $${(seatUpgradeCost * 1.12).toFixed(2)} total.` :
+        message: totalSeatUpgradeCost > 0 ? 
+          `Check-in completed with seat upgrades. Charged $${(totalSeatUpgradeCost * 1.12).toFixed(2)} total.` :
           "Check-in completed successfully",
         order: updatedOrder,
-        seatUpgrade: upgradeDetails,
-        paymentProcessed: seatUpgradeCost > 0 ? {
-          amount: seatUpgradeCost.toFixed(2),
-          taxes: (seatUpgradeCost * 0.12).toFixed(2),
-          total: (seatUpgradeCost * 1.12).toFixed(2),
+        assignedSeats: assignedSeats,
+        seatUpgrades: upgradeDetails,
+        paymentProcessed: totalSeatUpgradeCost > 0 ? {
+          amount: totalSeatUpgradeCost.toFixed(2),
+          taxes: (totalSeatUpgradeCost * 0.12).toFixed(2),
+          total: (totalSeatUpgradeCost * 1.12).toFixed(2),
           method: paymentMethod
         } : null
       });
