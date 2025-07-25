@@ -20,7 +20,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const response = await apiRequest("GET", `/api/auth/me`);
       const userData = await response.json();
-      setBalance((prev: any) => (prev = userData.walletBalance || "0.00"));
+      setBalance(userData.walletBalance || "0.00");
     } catch (error) {
       console.error("Failed to fetch wallet balance:", error);
     }

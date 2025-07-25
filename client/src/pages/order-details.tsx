@@ -68,10 +68,12 @@ export default function OrderDetails() {
       const response = await apiRequest("DELETE", `/api/orders/${orderId}`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      refreshBalance(); // Update wallet balance immediately
+      await refreshBalance(); // Update wallet balance immediately
+      // Force a second refresh after a short delay to ensure balance is updated
+      setTimeout(() => refreshBalance(), 500);
       toast({
         title: "Order Cancelled",
         description:
@@ -193,11 +195,13 @@ export default function OrderDetails() {
       );
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      refreshBalance(); // Update wallet balance immediately
+      await refreshBalance(); // Update wallet balance immediately
+      // Force a second refresh after a short delay to ensure balance is updated
+      setTimeout(() => refreshBalance(), 500);
       toast({
         title: "Service Removed",
         description: `"${data.refundDetails.serviceName}" removed. $${data.refundDetails.totalRefund} refund processed via ${data.refundDetails.refundMethod}.`,
@@ -277,7 +281,6 @@ export default function OrderDetails() {
 
     if (confirmed) {
       removeServiceMutation.mutate(serviceId);
-      refreshBalance();
     }
   };
 
