@@ -87,6 +87,30 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const passengers = pgTable("passengers", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  dateOfBirth: text("date_of_birth"),
+  gender: text("gender"),
+  nationality: text("nationality"),
+  passportNumber: text("passport_number"),
+  passportExpiry: text("passport_expiry"),
+  // Travel preferences
+  seatPreference: text("seat_preference"), // window, aisle, middle
+  mealPreference: text("meal_preference"),
+  specialRequests: text("special_requests"),
+  // Additional info
+  emergencyContactName: text("emergency_contact_name"),
+  emergencyContactPhone: text("emergency_contact_phone"),
+  emergencyContactRelation: text("emergency_contact_relation"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const bookingHistory = pgTable("booking_history", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -125,6 +149,12 @@ export const insertBookingHistorySchema = createInsertSchema(bookingHistory).omi
   timestamp: true,
 });
 
+export const insertPassengerSchema = createInsertSchema(passengers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -138,6 +168,8 @@ export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type BookingHistory = typeof bookingHistory.$inferSelect;
 export type InsertBookingHistory = z.infer<typeof insertBookingHistorySchema>;
+export type Passenger = typeof passengers.$inferSelect;
+export type InsertPassenger = z.infer<typeof insertPassengerSchema>;
 
 // Additional schemas for frontend
 export const loginSchema = z.object({

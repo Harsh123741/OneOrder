@@ -13,11 +13,12 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
-import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport } from 'lucide-react';
+import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit } from 'lucide-react';
 
 const passengerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -39,10 +40,21 @@ export default function Checkout() {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showAddPassenger, setShowAddPassenger] = useState(false);
+  const [editingPassenger, setEditingPassenger] = useState<any>(null);
 
   // Get flight details and passenger count
   const flight = items.find(item => item.type === 'flight');
   const passengerCount = flight?.details?.passengerCount || 1;
+
+  // Fetch saved passengers
+  const { data: savedPassengers = [] } = useQuery({
+    queryKey: ['/api/passengers'],
+    enabled: !!user,
+  });
+
+  // State for selected passengers (mix of saved and new)
+  const [selectedPassengers, setSelectedPassengers] = useState<any[]>([]);
 
   const form = useForm({
     resolver: zodResolver(checkoutSchema),
@@ -56,6 +68,55 @@ export default function Checkout() {
       })),
       agreeTerms: false,
       agreePrivacy: false,
+    },
+  });
+
+  // Initialize selected passengers when savedPassengers loads
+  useEffect(() => {
+    if (savedPassengers.length > 0 && selectedPassengers.length === 0) {
+      const initialSelection = Array.from({ length: passengerCount }, (_, index) => {
+        if (index < savedPassengers.length) {
+          return { ...savedPassengers[index], isExisting: true };
+        }
+        return {
+          firstName: index === 0 ? user?.firstName || '' : '',
+          lastName: index === 0 ? user?.lastName || '' : '',
+          email: index === 0 ? user?.email || '' : '',
+          phone: index === 0 ? user?.phone || '' : '',
+          passportNumber: index === 0 ? user?.passportNumber || '' : '',
+          dateOfBirth: index === 0 ? user?.dateOfBirth || '' : '',
+          passportExpiry: index === 0 ? user?.passportExpiry || '' : '',
+          isExisting: false,
+        };
+      });
+      setSelectedPassengers(initialSelection);
+    }
+  }, [savedPassengers, passengerCount, user]);
+
+  // Mutation to save new passenger
+  const savePassengerMutation = useMutation({
+    mutationFn: async (passengerData: any) => {
+      const response = await apiRequest('POST', '/api/passengers', passengerData);
+      if (!response.ok) {
+        throw new Error('Failed to save passenger');
+      }
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/passengers'] });
+      toast({
+        title: 'Passenger Saved',
+        description: 'Passenger information has been saved for future bookings.',
+      });
+      setShowAddPassenger(false);
+      setEditingPassenger(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save passenger information.',
+        variant: 'destructive',
+      });
     },
   });
 
@@ -108,19 +169,51 @@ export default function Checkout() {
   });
 
   const onSubmit = async (data: any) => {
+    // Save new passengers to database for future use
+    const passengersToSave = selectedPassengers.filter(p => !p.isExisting && p.firstName && p.lastName);
+    
+    for (const passenger of passengersToSave) {
+      try {
+        await savePassengerMutation.mutateAsync({
+          firstName: passenger.firstName,
+          lastName: passenger.lastName,
+          email: passenger.email,
+          phone: passenger.phone,
+          dateOfBirth: passenger.dateOfBirth,
+          passportNumber: passenger.passportNumber,
+          passportExpiry: passenger.passportExpiry,
+          gender: passenger.gender,
+          nationality: passenger.nationality,
+        });
+      } catch (error) {
+        console.error('Failed to save passenger:', error);
+        // Continue with booking even if passenger saving fails
+      }
+    }
+
     // Update user profile with passenger info from first passenger
-    if (user && data.passengers[0]) {
+    if (user && selectedPassengers[0]) {
       const userData = {
-        passportNumber: data.passengers[0].passportNumber,
-        dateOfBirth: data.passengers[0].dateOfBirth,
-        passportExpiry: data.passengers[0].passportExpiry,
+        passportNumber: selectedPassengers[0].passportNumber,
+        dateOfBirth: selectedPassengers[0].dateOfBirth,
+        passportExpiry: selectedPassengers[0].passportExpiry,
       };
       await updateUserMutation.mutateAsync(userData);
     }
 
     // Create order with passenger information
     const orderData = {
-      passengerInfo: data.passengers,
+      passengerInfo: selectedPassengers.map(p => ({
+        firstName: p.firstName,
+        lastName: p.lastName,
+        email: p.email,
+        phone: p.phone,
+        dateOfBirth: p.dateOfBirth,
+        passportNumber: p.passportNumber,
+        passportExpiry: p.passportExpiry,
+        gender: p.gender,
+        nationality: p.nationality,
+      })),
       flightId: flight?.flightId,
       selectedServices: items.filter(item => item.type === 'service'),
       total: total,
@@ -156,88 +249,87 @@ export default function Checkout() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Passenger Information */}
+              {/* Passenger Selection and Management */}
               <div className="lg:col-span-2 space-y-6">
                 {Array.from({ length: passengerCount }, (_, passengerIndex) => (
                   <Card key={passengerIndex} className="shadow-sm border-l-4 border-l-airline-blue">
                     <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <Users className="w-5 h-5 mr-2 text-airline-blue" />
-                        Passenger {passengerIndex + 1}
-                        {passengerIndex === 0 && <Badge variant="secondary" className="ml-2">Primary</Badge>}
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <Users className="w-5 h-5 mr-2 text-airline-blue" />
+                          Passenger {passengerIndex + 1}
+                          {passengerIndex === 0 && <Badge variant="secondary" className="ml-2">Primary</Badge>}
+                        </div>
+                        <div className="flex gap-2">
+                          {savedPassengers.length > 0 && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setShowAddPassenger(true);
+                                setEditingPassenger({ index: passengerIndex, type: 'select' });
+                              }}
+                            >
+                              <UserCheck className="w-4 h-4 mr-1" />
+                              Select Saved
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowAddPassenger(true);
+                              setEditingPassenger({ index: passengerIndex, type: 'new' });
+                            }}
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Add New
+                          </Button>
+                        </div>
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name={`passengers.${passengerIndex}.firstName`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>First Name *</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="John" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`passengers.${passengerIndex}.lastName`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Last Name *</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="Doe" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <FormField
-                          control={form.control}
-                          name={`passengers.${passengerIndex}.passportNumber`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Passport Number *</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="A12345678" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`passengers.${passengerIndex}.dateOfBirth`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Date of Birth *</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="date" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name={`passengers.${passengerIndex}.passportExpiry`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Passport Expiry *</FormLabel>
-                              <FormControl>
-                                <Input {...field} type="date" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                    <CardContent>
+                      {selectedPassengers[passengerIndex] ? (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="font-semibold text-green-900">
+                                {selectedPassengers[passengerIndex].firstName} {selectedPassengers[passengerIndex].lastName}
+                              </h4>
+                              <p className="text-sm text-green-700">
+                                {selectedPassengers[passengerIndex].email} • {selectedPassengers[passengerIndex].phone}
+                              </p>
+                              <p className="text-sm text-green-600">
+                                Passport: {selectedPassengers[passengerIndex].passportNumber}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setShowAddPassenger(true);
+                                  setEditingPassenger({ 
+                                    index: passengerIndex, 
+                                    type: 'edit', 
+                                    data: selectedPassengers[passengerIndex] 
+                                  });
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 text-gray-500">
+                          <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                          <p>Please select or add passenger information</p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -300,15 +392,20 @@ export default function Checkout() {
                     <Button
                       type="submit"
                       className="w-full bg-airline-blue hover:bg-blue-700 text-white py-3 text-lg"
-                      disabled={createOrderMutation.isPending}
+                      disabled={createOrderMutation.isPending || selectedPassengers.some(p => !p || !p.firstName)}
                     >
                       {createOrderMutation.isPending ? (
                         <div className="flex items-center">
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                           Processing...
                         </div>
+                      ) : selectedPassengers.some(p => !p || !p.firstName) ? (
+                        "Please complete all passenger information"
                       ) : (
-                        `Continue to Payment`
+                        <>
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Continue to Payment
+                        </>
                       )}
                     </Button>
                   </CardContent>
@@ -419,7 +516,213 @@ export default function Checkout() {
             </div>
           </form>
         </Form>
+        
+        {/* Passenger Management Modal */}
+        <Dialog open={showAddPassenger} onOpenChange={setShowAddPassenger}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingPassenger?.type === 'select' ? 'Select Saved Passenger' : 
+                 editingPassenger?.type === 'edit' ? 'Edit Passenger Information' : 
+                 'Add New Passenger'}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {editingPassenger?.type === 'select' ? (
+              <SavedPassengerSelection />
+            ) : (
+              <PassengerForm />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
+
+  // Component for selecting saved passengers
+  function SavedPassengerSelection() {
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-60 overflow-y-auto">
+          {savedPassengers.map((passenger: any) => (
+            <Card 
+              key={passenger.id} 
+              className="cursor-pointer hover:shadow-md transition-shadow border-2 hover:border-airline-blue"
+              onClick={() => {
+                const newSelectedPassengers = [...selectedPassengers];
+                newSelectedPassengers[editingPassenger.index] = { 
+                  ...passenger, 
+                  isExisting: true 
+                };
+                setSelectedPassengers(newSelectedPassengers);
+                setShowAddPassenger(false);
+                setEditingPassenger(null);
+              }}
+            >
+              <CardContent className="p-4">
+                <h4 className="font-semibold">{passenger.firstName} {passenger.lastName}</h4>
+                <p className="text-sm text-gray-600">{passenger.email}</p>
+                <p className="text-sm text-gray-600">Passport: {passenger.passportNumber}</p>
+                <p className="text-sm text-gray-500">DOB: {passenger.dateOfBirth}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowAddPassenger(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              setEditingPassenger({ ...editingPassenger, type: 'new' });
+            }}
+          >
+            Add New Instead
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Component for adding/editing passenger information
+  function PassengerForm() {
+    const [formData, setFormData] = useState(
+      editingPassenger?.data || {
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        dateOfBirth: '',
+        passportNumber: '',
+        passportExpiry: '',
+        gender: '',
+        nationality: '',
+      }
+    );
+
+    const handleSave = () => {
+      const newSelectedPassengers = [...selectedPassengers];
+      newSelectedPassengers[editingPassenger.index] = { 
+        ...formData, 
+        isExisting: false 
+      };
+      setSelectedPassengers(newSelectedPassengers);
+      setShowAddPassenger(false);
+      setEditingPassenger(null);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="firstName">First Name *</Label>
+            <Input
+              id="firstName"
+              value={formData.firstName}
+              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+              placeholder="John"
+            />
+          </div>
+          <div>
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              value={formData.lastName}
+              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+              placeholder="Doe"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              placeholder="john.doe@example.com"
+            />
+          </div>
+          <div>
+            <Label htmlFor="phone">Phone</Label>
+            <Input
+              id="phone"
+              value={formData.phone}
+              onChange={(e) => setFormData({...formData, phone: e.target.value})}
+              placeholder="+1 234 567 8900"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label htmlFor="dateOfBirth">Date of Birth *</Label>
+            <Input
+              id="dateOfBirth"
+              type="date"
+              value={formData.dateOfBirth}
+              onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})}
+            />
+          </div>
+          <div>
+            <Label htmlFor="passportNumber">Passport Number *</Label>
+            <Input
+              id="passportNumber"
+              value={formData.passportNumber}
+              onChange={(e) => setFormData({...formData, passportNumber: e.target.value})}
+              placeholder="A12345678"
+            />
+          </div>
+          <div>
+            <Label htmlFor="passportExpiry">Passport Expiry *</Label>
+            <Input
+              id="passportExpiry"
+              type="date"
+              value={formData.passportExpiry}
+              onChange={(e) => setFormData({...formData, passportExpiry: e.target.value})}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="gender">Gender</Label>
+            <Select value={formData.gender} onValueChange={(value) => setFormData({...formData, gender: value})}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="nationality">Nationality</Label>
+            <Input
+              id="nationality"
+              value={formData.nationality}
+              onChange={(e) => setFormData({...formData, nationality: e.target.value})}
+              placeholder="American"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4">
+          <Button variant="outline" onClick={() => setShowAddPassenger(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSave}
+            disabled={!formData.firstName || !formData.lastName || !formData.passportNumber || !formData.dateOfBirth || !formData.passportExpiry}
+          >
+            {editingPassenger?.type === 'edit' ? 'Update' : 'Add'} Passenger
+          </Button>
+        </div>
+      </div>
+    );
+  }
 }

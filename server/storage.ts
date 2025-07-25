@@ -1,8 +1,9 @@
 import { 
-  users, flights, seats, services, orders, bookingHistory,
+  users, flights, seats, services, orders, bookingHistory, passengers,
   type User, type InsertUser, type Flight, type InsertFlight,
   type Seat, type InsertSeat, type Service, type InsertService,
-  type Order, type InsertOrder, type BookingHistory, type InsertBookingHistory
+  type Order, type InsertOrder, type BookingHistory, type InsertBookingHistory,
+  type Passenger, type InsertPassenger
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { db } from "./db";
@@ -56,6 +57,13 @@ export interface IStorage {
   // Booking history methods
   createBookingHistory(history: InsertBookingHistory): Promise<BookingHistory>;
   getUserBookingHistory(userId: number): Promise<BookingHistory[]>;
+  
+  // Passenger methods
+  getPassenger(id: number): Promise<Passenger | undefined>;
+  getUserPassengers(userId: number): Promise<Passenger[]>;
+  createPassenger(passenger: InsertPassenger): Promise<Passenger>;
+  updatePassenger(id: number, updates: Partial<Passenger>): Promise<Passenger | undefined>;
+  deletePassenger(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -727,6 +735,45 @@ export class DatabaseStorage implements IStorage {
 
   async getUserBookingHistory(userId: number): Promise<BookingHistory[]> {
     return await db.select().from(bookingHistory).where(eq(bookingHistory.userId, userId));
+  }
+
+  // Passenger methods
+  async getPassenger(id: number): Promise<Passenger | undefined> {
+    const [passenger] = await db.select().from(passengers).where(eq(passengers.id, id));
+    return passenger || undefined;
+  }
+
+  async getUserPassengers(userId: number): Promise<Passenger[]> {
+    return await db.select().from(passengers).where(eq(passengers.userId, userId));
+  }
+
+  async createPassenger(insertPassenger: InsertPassenger): Promise<Passenger> {
+    const [passenger] = await db
+      .insert(passengers)
+      .values({
+        ...insertPassenger,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return passenger;
+  }
+
+  async updatePassenger(id: number, updates: Partial<Passenger>): Promise<Passenger | undefined> {
+    const [updatedPassenger] = await db
+      .update(passengers)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(passengers.id, id))
+      .returning();
+    return updatedPassenger || undefined;
+  }
+
+  async deletePassenger(id: number): Promise<boolean> {
+    const result = await db.delete(passengers).where(eq(passengers.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 }
 

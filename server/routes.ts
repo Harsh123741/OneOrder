@@ -610,6 +610,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Passenger Management Routes
+  app.get("/api/passengers", authenticateToken, async (req: any, res) => {
+    try {
+      const passengers = await storage.getUserPassengers(req.user.userId);
+      res.json(passengers);
+    } catch (error) {
+      console.error("Get passengers error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/passengers", authenticateToken, async (req: any, res) => {
+    try {
+      const passengerData = {
+        ...req.body,
+        userId: req.user.userId,
+      };
+      
+      const passenger = await storage.createPassenger(passengerData);
+      res.json(passenger);
+    } catch (error) {
+      console.error("Create passenger error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/passengers/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const passengerId = parseInt(req.params.id);
+      
+      // Verify passenger belongs to user
+      const existingPassenger = await storage.getPassenger(passengerId);
+      if (!existingPassenger || existingPassenger.userId !== req.user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updatedPassenger = await storage.updatePassenger(passengerId, req.body);
+      if (!updatedPassenger) {
+        return res.status(404).json({ message: "Passenger not found" });
+      }
+      
+      res.json(updatedPassenger);
+    } catch (error) {
+      console.error("Update passenger error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/passengers/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const passengerId = parseInt(req.params.id);
+      
+      // Verify passenger belongs to user
+      const existingPassenger = await storage.getPassenger(passengerId);
+      if (!existingPassenger || existingPassenger.userId !== req.user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const deleted = await storage.deletePassenger(passengerId);
+      if (!deleted) {
+        return res.status(404).json({ message: "Passenger not found" });
+      }
+      
+      res.json({ success: true, message: "Passenger deleted successfully" });
+    } catch (error) {
+      console.error("Delete passenger error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.get("/api/orders/:orderNumber", authenticateToken, async (req: any, res) => {
     try {
       const order = await storage.getOrderByNumber(req.params.orderNumber);
