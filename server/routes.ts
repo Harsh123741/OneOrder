@@ -367,23 +367,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const quantity = service.quantity || 1;
         additionalServicesPrice += parseFloat(serviceData.price) * quantity;
         
-        // Get passenger info for service assignment
-        let passengerName = "General Service";
-        if (service.passengerId !== undefined && order.passengerInfo) {
-          const passengers = Array.isArray(order.passengerInfo) ? order.passengerInfo : [order.passengerInfo];
-          const passenger = passengers[service.passengerId];
-          if (passenger) {
-            passengerName = `${passenger.firstName} ${passenger.lastName}`;
-          }
-        }
-
         validatedServices.push({
           id: serviceData.id,
           name: serviceData.name,
           price: parseFloat(serviceData.price),
-          quantity: quantity,
-          passengerName: passengerName,
-          passengerId: service.passengerId
+          quantity: quantity
         });
         
         // Create booking history entry

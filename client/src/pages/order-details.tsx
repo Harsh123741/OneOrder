@@ -112,7 +112,6 @@ export default function OrderDetails() {
   const [availableServices, setAvailableServices] = useState<any[]>([]);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<string>("credit_card");
-  const [selectedPassengerForService, setSelectedPassengerForService] = useState<{[key: number]: number}>({});
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState({
     cardNumber: "",
@@ -157,7 +156,6 @@ export default function OrderDetails() {
           services: services.map((service) => ({
             id: service.id,
             quantity: service.quantity || 1,
-            passengerId: selectedPassengerForService[service.id],
           })),
           paymentMethod,
           paymentDetails,
@@ -732,14 +730,7 @@ export default function OrderDetails() {
                       <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center">
                         <span className="text-white text-xs">✓</span>
                       </div>
-                      <div>
-                        <span className="font-medium">{service.name}</span>
-                        {service.passengerName && service.passengerName !== "General Service" && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            For: {service.passengerName}
-                          </div>
-                        )}
-                      </div>
+                      <span className="font-medium">{service.name}</span>
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className="font-semibold text-airline-blue">
@@ -843,42 +834,6 @@ export default function OrderDetails() {
 
                   {selectedServices.length > 0 && (
                     <div className="border-t pt-4">
-                      {/* Passenger Assignment Section */}
-                      <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                        <h5 className="font-medium text-gray-900 mb-3">Assign Services to Passengers</h5>
-                        <div className="space-y-3">
-                          {selectedServices.map((service) => {
-                            const passengers = Array.isArray(order?.passengerInfo) ? order.passengerInfo : [order?.passengerInfo];
-                            return (
-                              <div key={service.id} className="flex items-center justify-between">
-                                <span className="text-sm font-medium">{service.name}</span>
-                                <Select
-                                  value={selectedPassengerForService[service.id]?.toString() || "general"}
-                                  onValueChange={(value) => 
-                                    setSelectedPassengerForService(prev => ({
-                                      ...prev,
-                                      [service.id]: value === "general" ? undefined : parseInt(value)
-                                    }))
-                                  }
-                                >
-                                  <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Select passenger" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="general">General Service</SelectItem>
-                                    {passengers.filter(p => p).map((passenger: any, index: number) => (
-                                      <SelectItem key={index} value={index.toString()}>
-                                        {passenger.firstName} {passenger.lastName}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold">
                           Selected Services ({selectedServices.length})
