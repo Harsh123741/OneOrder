@@ -19,6 +19,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
 import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit } from 'lucide-react';
+import LoyaltyTierDisplay from '@/components/loyalty-tier-display';
 
 const passengerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -51,6 +52,34 @@ export default function Checkout() {
     queryKey: ['/api/passengers'],
     enabled: !!user,
   });
+
+  // Fetch user's loyalty status and available bundles
+  const { data: loyaltyStatus } = useQuery({
+    queryKey: ['/api/loyalty/user', user?.id, 'status'],
+    enabled: !!user,
+  });
+
+  const { data: loyaltyBundles = [] } = useQuery({
+    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName],
+    queryFn: async () => {
+      if (!loyaltyStatus?.currentTier?.tierName) return [];
+      const response = await fetch(`/api/loyalty/bundles/${loyaltyStatus.currentTier.tierName}?phase=booking`);
+      return response.json();
+    },
+    enabled: !!loyaltyStatus?.currentTier?.tierName,
+  });
+
+  // State for selected loyalty bundles
+  const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
+
+  // Handler for loyalty bundle toggling
+  const handleBundleToggle = (bundleId: number) => {
+    setSelectedLoyaltyBundles(prev => 
+      prev.includes(bundleId) 
+        ? prev.filter(id => id !== bundleId)
+        : [...prev, bundleId]
+    );
+  };
 
   // State for selected passengers (mix of saved and new)
   const [selectedPassengers, setSelectedPassengers] = useState<any[]>([]);
@@ -189,7 +218,7 @@ export default function Checkout() {
       await updateUserMutation.mutateAsync(userData);
     }
 
-    // Create order with passenger information
+    // Create order with passenger information and loyalty bundles
     const orderData = {
       passengerInfo: selectedPassengers.map(p => ({
         firstName: p.firstName,
@@ -205,6 +234,8 @@ export default function Checkout() {
       flightId: flight?.flightId,
       items: items, // Send all items including services with passenger attribution
       total: total,
+      loyaltyTier: loyaltyStatus?.currentTier?.tierName,
+      selectedLoyaltyBundles: selectedLoyaltyBundles,
     };
 
     createOrderMutation.mutate(orderData);
@@ -402,6 +433,16 @@ export default function Checkout() {
 
               {/* Order Summary */}
               <div className="space-y-6">
+                {/* Loyalty Tier Display */}
+                {loyaltyStatus && loyaltyBundles.length > 0 && (
+                  <LoyaltyTierDisplay
+                    loyaltyStatus={loyaltyStatus}
+                    loyaltyBundles={loyaltyBundles}
+                    selectedBundles={selectedLoyaltyBundles}
+                    onBundleToggle={handleBundleToggle}
+                  />
+                )}
+
                 <Card>
                   <CardHeader>
                     <CardTitle>Booking Summary</CardTitle>

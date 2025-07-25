@@ -86,6 +86,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         orderData.passengerInfo = passengerInfo;
       }
       
+      // Process loyalty bundles if provided
+      if (orderData.loyaltyTier && orderData.selectedLoyaltyBundles) {
+        const bundles = await storage.getLoyaltyBundles(orderData.loyaltyTier, 'booking');
+        const selectedBundles = bundles.filter(bundle => 
+          orderData.selectedLoyaltyBundles.includes(bundle.id)
+        );
+        
+        // Apply loyalty bundle information to order
+        orderData.loyaltyTierAtBooking = orderData.loyaltyTier;
+        orderData.loyaltyBundles = selectedBundles.map(bundle => bundle.id);
+        
+        // Separate complimentary and discounted services
+        const complimentaryServices: any[] = [];
+        const tierDiscounts: any[] = [];
+        
+        selectedBundles.forEach(bundle => {
+          if (bundle.isComplimentary) {
+            complimentaryServices.push({
+              bundleId: bundle.id,
+              bundleName: bundle.bundleName,
+              serviceIds: bundle.serviceIds,
+              description: bundle.description
+            });
+          } else {
+            tierDiscounts.push({
+              bundleId: bundle.id,
+              bundleName: bundle.bundleName,
+              serviceIds: bundle.serviceIds,
+              discountPercentage: bundle.discountPercentage,
+              description: bundle.description
+            });
+          }
+        });
+        
+        orderData.complimentaryServices = complimentaryServices;
+        orderData.tierDiscounts = tierDiscounts;
+      }
+
       // Calculate subtotal and taxes
       const total = parseFloat(orderData.total);
       const subtotal = parseFloat((total / 1.12).toFixed(2));
@@ -112,6 +150,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const order = await storage.getOrderByNumber(orderNumber);
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Update loyalty stats when payment is completed
+      if (order.userId && order.flightId) {
+        const flight = await storage.getFlight(order.flightId);
+        if (flight) {
+          await storage.updateUserLoyaltyStats(order.userId, order, flight);
+        }
       }
 
       // Update order status to confirmed
@@ -1144,6 +1190,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const history = await storage.getUserBookingHistory(userId);
       res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Loyalty System Routes
+  app.get("/api/loyalty/tiers", async (req, res) => {
+    try {
+      const tiers = await storage.getLoyaltyTiers();
+      res.json(tiers);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/loyalty/user/:id/status", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      // Ensure user can only access their own loyalty status
+      if (userId !== req.user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const eligibility = await storage.calculateTierEligibility(userId);
+      const tier = await storage.getLoyaltyTier(user.loyaltyTier);
+      const transactions = await storage.getUserPointsTransactions(userId);
+      const tierHistory = await storage.getUserTierHistory(userId);
+
+      res.json({
+        currentTier: tier,
+        loyaltyPoints: user.loyaltyPoints,
+        totalMilesFlown: user.totalMilesFlown,
+        totalSpent: user.totalSpent,
+        lifetimeMiles: user.lifetimeMiles,
+        memberSince: user.memberSince,
+        tierAnniversary: user.tierAnniversary,
+        eligibility,
+        recentTransactions: transactions.slice(0, 10),
+        tierHistory: tierHistory.slice(0, 5)
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/loyalty/bundles/:tierName", async (req, res) => {
+    try {
+      const { tierName } = req.params;
+      const { phase } = req.query;
+      
+      const bundles = await storage.getLoyaltyBundles(tierName, phase as string);
+      res.json(bundles);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/loyalty/discount/:tierName", async (req, res) => {
+    try {
+      const { tierName } = req.params;
+      const { phase = 'booking' } = req.query;
+      
+      const discountInfo = await storage.getBundleDiscountForTier(tierName, phase as string);
+      res.json(discountInfo);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/loyalty/apply-bundles", authenticateToken, async (req: any, res) => {
+    try {
+      const { orderNumber, selectedBundles, phase = 'booking' } = req.body;
+      
+      if (!orderNumber || !selectedBundles || !Array.isArray(selectedBundles)) {
+        return res.status(400).json({ message: "Order number and selected bundles are required" });
+      }
+
+      const order = await storage.getOrderByNumber(orderNumber);
+      if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+      }
+
+      // Ensure user can only modify their own orders
+      if (order.userId !== req.user.userId) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      const user = await storage.getUser(req.user.userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get user's tier bundles
+      const availableBundles = await storage.getLoyaltyBundles(user.loyaltyTier, phase);
+      
+      // Calculate discounts and complimentary services
+      let totalDiscount = 0;
+      let complimentaryServices: any[] = [];
+      let discountedServices: any[] = [];
+
+      for (const bundleId of selectedBundles) {
+        const bundle = availableBundles.find(b => b.id === bundleId);
+        if (bundle) {
+          if (bundle.isComplimentary) {
+            complimentaryServices.push({
+              bundleId: bundle.id,
+              bundleName: bundle.bundleName,
+              serviceIds: bundle.serviceIds,
+              description: bundle.description
+            });
+          } else {
+            discountedServices.push({
+              bundleId: bundle.id,
+              bundleName: bundle.bundleName,
+              serviceIds: bundle.serviceIds,
+              discountPercentage: bundle.discountPercentage,
+              description: bundle.description
+            });
+            totalDiscount += parseFloat(bundle.discountPercentage);
+          }
+        }
+      }
+
+      // Update order with loyalty bundle information
+      const currentLoyaltyBundles = order.loyaltyBundles || [];
+      const currentComplimentary = order.complimentaryServices || [];
+      const currentTierDiscounts = order.tierDiscounts || [];
+
+      await storage.updateOrder(order.id, {
+        loyaltyBundles: [...currentLoyaltyBundles, ...selectedBundles],
+        complimentaryServices: [...currentComplimentary, ...complimentaryServices],
+        tierDiscounts: [...currentTierDiscounts, ...discountedServices]
+      });
+
+      res.json({
+        success: true,
+        appliedBundles: selectedBundles,
+        complimentaryServices,
+        discountedServices,
+        totalDiscount,
+        message: `Applied ${selectedBundles.length} loyalty bundles for ${user.loyaltyTier} tier`
+      });
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }

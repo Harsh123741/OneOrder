@@ -1,13 +1,16 @@
 import { 
   users, flights, seats, services, orders, bookingHistory, passengers,
+  loyaltyTiers, loyaltyBundles, pointsTransactions, tierHistory,
   type User, type InsertUser, type Flight, type InsertFlight,
   type Seat, type InsertSeat, type Service, type InsertService,
   type Order, type InsertOrder, type BookingHistory, type InsertBookingHistory,
-  type Passenger, type InsertPassenger
+  type Passenger, type InsertPassenger, type LoyaltyTier, type InsertLoyaltyTier,
+  type LoyaltyBundle, type InsertLoyaltyBundle, type PointsTransaction, type InsertPointsTransaction,
+  type TierHistory, type InsertTierHistory
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { db } from "./db";
-import { eq, and, gte, lte, ilike } from "drizzle-orm";
+import { eq, and, gte, lte, ilike, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -774,6 +777,224 @@ export class DatabaseStorage implements IStorage {
   async deletePassenger(id: number): Promise<boolean> {
     const result = await db.delete(passengers).where(eq(passengers.id, id));
     return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Loyalty Tier Methods
+  async getLoyaltyTiers(): Promise<LoyaltyTier[]> {
+    return await db.select().from(loyaltyTiers).where(eq(loyaltyTiers.isActive, true)).orderBy(loyaltyTiers.priority);
+  }
+
+  async getLoyaltyTier(tierName: string): Promise<LoyaltyTier | undefined> {
+    const [tier] = await db.select().from(loyaltyTiers).where(eq(loyaltyTiers.tierName, tierName));
+    return tier || undefined;
+  }
+
+  async createLoyaltyTier(insertTier: InsertLoyaltyTier): Promise<LoyaltyTier> {
+    const [tier] = await db
+      .insert(loyaltyTiers)
+      .values(insertTier)
+      .returning();
+    return tier;
+  }
+
+  // Loyalty Bundle Methods
+  async getLoyaltyBundles(tierName?: string, phase?: string): Promise<LoyaltyBundle[]> {
+    let query = db.select().from(loyaltyBundles).where(eq(loyaltyBundles.isActive, true));
+    
+    if (tierName) {
+      query = query.where(eq(loyaltyBundles.tierName, tierName));
+    }
+    
+    if (phase) {
+      query = query.where(eq(loyaltyBundles.phase, phase));
+    }
+    
+    return await query;
+  }
+
+  async createLoyaltyBundle(insertBundle: InsertLoyaltyBundle): Promise<LoyaltyBundle> {
+    const [bundle] = await db
+      .insert(loyaltyBundles)
+      .values(insertBundle)
+      .returning();
+    return bundle;
+  }
+
+  // Points Transaction Methods
+  async createPointsTransaction(insertTransaction: InsertPointsTransaction): Promise<PointsTransaction> {
+    const [transaction] = await db
+      .insert(pointsTransactions)
+      .values(insertTransaction)
+      .returning();
+    return transaction;
+  }
+
+  async getUserPointsTransactions(userId: number): Promise<PointsTransaction[]> {
+    return await db.select().from(pointsTransactions)
+      .where(eq(pointsTransactions.userId, userId))
+      .orderBy(desc(pointsTransactions.createdAt));
+  }
+
+  // Tier History Methods
+  async createTierHistory(insertHistory: InsertTierHistory): Promise<TierHistory> {
+    const [history] = await db
+      .insert(tierHistory)
+      .values(insertHistory)
+      .returning();
+    return history;
+  }
+
+  async getUserTierHistory(userId: number): Promise<TierHistory[]> {
+    return await db.select().from(tierHistory)
+      .where(eq(tierHistory.userId, userId))
+      .orderBy(desc(tierHistory.upgradeDate));
+  }
+
+  // Loyalty System Business Logic
+  async calculateTierEligibility(userId: number): Promise<{ suggestedTier: string; qualified: boolean; progressToNext: any }> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+
+    const tiers = await this.getLoyaltyTiers();
+    const currentTier = tiers.find(t => t.tierName === user.loyaltyTier) || tiers[0];
+    
+    // Find the highest tier the user qualifies for
+    let qualifiedTier = tiers[0]; // Default to lowest tier
+    
+    for (const tier of tiers.reverse()) { // Check from highest to lowest
+      const qualifiesPoints = user.loyaltyPoints >= tier.minPoints;
+      const qualifiesMiles = user.totalMilesFlown >= tier.minMiles;
+      const qualifiesSpend = parseFloat(user.totalSpent) >= parseFloat(tier.minSpend);
+      
+      if (qualifiesPoints || qualifiesMiles || qualifiesSpend) {
+        qualifiedTier = tier;
+        break;
+      }
+    }
+
+    // Calculate progress to next tier
+    const nextTierIndex = tiers.findIndex(t => t.tierName === qualifiedTier.tierName) + 1;
+    const nextTier = nextTierIndex < tiers.length ? tiers[nextTierIndex] : null;
+    
+    let progressToNext = null;
+    if (nextTier) {
+      progressToNext = {
+        tierName: nextTier.tierName,
+        displayName: nextTier.displayName,
+        pointsNeeded: Math.max(0, nextTier.minPoints - user.loyaltyPoints),
+        milesNeeded: Math.max(0, nextTier.minMiles - user.totalMilesFlown),
+        spendNeeded: Math.max(0, parseFloat(nextTier.minSpend) - parseFloat(user.totalSpent)),
+        progressPercentage: Math.max(
+          (user.loyaltyPoints / nextTier.minPoints) * 100,
+          (user.totalMilesFlown / nextTier.minMiles) * 100,
+          (parseFloat(user.totalSpent) / parseFloat(nextTier.minSpend)) * 100
+        )
+      };
+    }
+
+    return {
+      suggestedTier: qualifiedTier.tierName,
+      qualified: qualifiedTier.tierName !== user.loyaltyTier,
+      progressToNext
+    };
+  }
+
+  async updateUserLoyaltyStats(userId: number, order: Order, flight: Flight): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user) return;
+
+    // Calculate miles earned (simplified - in reality would use flight distance)
+    const milesEarned = Math.round(parseFloat(flight.price) * 2); // 2 miles per dollar spent
+    
+    // Calculate points earned with tier multiplier
+    const tier = await this.getLoyaltyTier(user.loyaltyTier);
+    const multiplier = tier ? parseFloat(tier.multiplier) : 1.0;
+    const basePoints = Math.round(parseFloat(order.total) * 10); // 10 points per dollar
+    const pointsEarned = Math.round(basePoints * multiplier);
+
+    // Update user loyalty stats
+    await this.updateUser(userId, {
+      loyaltyPoints: user.loyaltyPoints + pointsEarned,
+      totalMilesFlown: user.totalMilesFlown + milesEarned,
+      totalSpent: (parseFloat(user.totalSpent) + parseFloat(order.total)).toFixed(2),
+      lifetimeMiles: user.lifetimeMiles + milesEarned,
+    });
+
+    // Create points transaction record
+    await this.createPointsTransaction({
+      userId,
+      orderId: order.id,
+      transactionType: 'earned',
+      points: pointsEarned,
+      description: `Points earned from booking ${order.orderNumber}`,
+      multiplier: multiplier.toFixed(2),
+      basePoints,
+    });
+
+    // Check for tier upgrade
+    const eligibility = await this.calculateTierEligibility(userId);
+    if (eligibility.qualified) {
+      await this.upgradeUserTier(userId, eligibility.suggestedTier);
+    }
+  }
+
+  async upgradeUserTier(userId: number, newTier: string): Promise<void> {
+    const user = await this.getUser(userId);
+    if (!user || user.loyaltyTier === newTier) return;
+
+    const previousTier = user.loyaltyTier;
+    
+    // Update user tier
+    await this.updateUser(userId, {
+      loyaltyTier: newTier,
+      tierAnniversary: new Date(),
+    });
+
+    // Record tier history
+    await this.createTierHistory({
+      userId,
+      previousTier,
+      newTier,
+      qualificationMethod: 'points', // Simplified
+      qualificationValue: user.loyaltyPoints,
+      isDowngrade: false,
+    });
+
+    // Award tier upgrade bonus points
+    const bonusPoints = this.getTierUpgradeBonus(newTier);
+    if (bonusPoints > 0) {
+      await this.updateUser(userId, {
+        loyaltyPoints: user.loyaltyPoints + bonusPoints,
+      });
+
+      await this.createPointsTransaction({
+        userId,
+        transactionType: 'bonus',
+        points: bonusPoints,
+        description: `Tier upgrade bonus for reaching ${newTier} status`,
+        multiplier: '1.00',
+        basePoints: bonusPoints,
+      });
+    }
+  }
+
+  private getTierUpgradeBonus(tierName: string): number {
+    const bonuses: { [key: string]: number } = {
+      'silver': 2500,
+      'gold': 5000,
+      'platinum': 10000,
+      'diamond': 25000,
+    };
+    return bonuses[tierName] || 0;
+  }
+
+  async getBundleDiscountForTier(tierName: string, phase: string = 'booking'): Promise<{bundles: LoyaltyBundle[], totalDiscount: number}> {
+    const bundles = await this.getLoyaltyBundles(tierName, phase);
+    const totalDiscount = bundles.reduce((sum, bundle) => {
+      return sum + (bundle.isComplimentary ? 100 : parseFloat(bundle.discountPercentage));
+    }, 0);
+    
+    return { bundles, totalDiscount };
   }
 }
 

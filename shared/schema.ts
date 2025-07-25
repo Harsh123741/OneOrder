@@ -22,6 +22,14 @@ export const users = pgTable("users", {
   // Payment Information (encrypted/hashed)
   savedCards: json("saved_cards").array(), // Array of encrypted card details
   walletBalance: decimal("wallet_balance", { precision: 10, scale: 2 }).default("0.00"),
+  // Loyalty Program Information
+  loyaltyTier: text("loyalty_tier").default("bronze"), // bronze, silver, gold, platinum, diamond
+  loyaltyPoints: integer("loyalty_points").default(0),
+  totalMilesFlown: integer("total_miles_flown").default(0),
+  totalSpent: decimal("total_spent", { precision: 10, scale: 2 }).default("0.00"),
+  memberSince: timestamp("member_since").defaultNow(),
+  tierAnniversary: timestamp("tier_anniversary").defaultNow(),
+  lifetimeMiles: integer("lifetime_miles").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -84,6 +92,13 @@ export const orders = pgTable("orders", {
   canCheckIn: boolean("can_check_in").default(false),
   isCheckedIn: boolean("is_checked_in").default(false),
   checkInTime: timestamp("check_in_time"),
+  // Loyalty Program Integration
+  loyaltyTierAtBooking: text("loyalty_tier_at_booking"),
+  pointsEarned: integer("points_earned").default(0),
+  milesEarned: integer("miles_earned").default(0),
+  loyaltyBundles: json("loyalty_bundles").array(), // Applied loyalty bundles
+  tierDiscounts: json("tier_discounts").array(), // Applied tier-based discounts
+  complimentaryServices: json("complimentary_services").array(), // Free services due to tier
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -119,10 +134,69 @@ export const bookingHistory = pgTable("booking_history", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// Loyalty Tiers Configuration
+export const loyaltyTiers = pgTable("loyalty_tiers", {
+  id: serial("id").primaryKey(),
+  tierName: text("tier_name").notNull().unique(), // bronze, silver, gold, platinum, diamond
+  displayName: text("display_name").notNull(), // Bronze Member, Silver Elite, etc.
+  minPoints: integer("min_points").notNull(),
+  minMiles: integer("min_miles").notNull(),
+  minSpend: decimal("min_spend", { precision: 10, scale: 2 }).notNull(),
+  color: text("color").notNull(), // hex color for UI
+  benefits: json("benefits").notNull(), // Array of benefit objects
+  multiplier: decimal("multiplier", { precision: 3, scale: 2 }).default("1.00"), // Points earning multiplier
+  priority: integer("priority").notNull(), // Lower number = higher priority
+  isActive: boolean("is_active").default(true),
+});
+
+// Service Bundles for Loyalty Tiers
+export const loyaltyBundles = pgTable("loyalty_bundles", {
+  id: serial("id").primaryKey(),
+  tierName: text("tier_name").notNull().references(() => loyaltyTiers.tierName),
+  bundleName: text("bundle_name").notNull(),
+  description: text("description").notNull(),
+  serviceIds: json("service_ids").notNull(), // Array of service IDs included
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).default("0.00"),
+  isComplimentary: boolean("is_complimentary").default(false),
+  phase: text("phase").notNull(), // booking, pre_boarding, in_flight, arrival
+  isActive: boolean("is_active").default(true),
+});
+
+// Points Transactions History
+export const pointsTransactions = pgTable("points_transactions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  orderId: integer("order_id").references(() => orders.id),
+  transactionType: text("transaction_type").notNull(), // earned, redeemed, expired, bonus
+  points: integer("points").notNull(), // Positive for earned, negative for redeemed
+  description: text("description").notNull(),
+  multiplier: decimal("multiplier", { precision: 3, scale: 2 }).default("1.00"),
+  basePoints: integer("base_points").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Tier Progression History
+export const tierHistory = pgTable("tier_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  previousTier: text("previous_tier"),
+  newTier: text("new_tier").notNull(),
+  qualificationMethod: text("qualification_method").notNull(), // points, miles, spend
+  qualificationValue: integer("qualification_value").notNull(),
+  upgradeDate: timestamp("upgrade_date").defaultNow(),
+  isDowngrade: boolean("is_downgrade").default(false),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   walletBalance: true,
+  loyaltyPoints: true,
+  totalMilesFlown: true,
+  totalSpent: true,
+  memberSince: true,
+  tierAnniversary: true,
+  lifetimeMiles: true,
   createdAt: true,
 });
 
@@ -155,6 +229,24 @@ export const insertPassengerSchema = createInsertSchema(passengers).omit({
   updatedAt: true,
 });
 
+export const insertLoyaltyTierSchema = createInsertSchema(loyaltyTiers).omit({
+  id: true,
+});
+
+export const insertLoyaltyBundleSchema = createInsertSchema(loyaltyBundles).omit({
+  id: true,
+});
+
+export const insertPointsTransactionSchema = createInsertSchema(pointsTransactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTierHistorySchema = createInsertSchema(tierHistory).omit({
+  id: true,
+  upgradeDate: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -170,6 +262,14 @@ export type BookingHistory = typeof bookingHistory.$inferSelect;
 export type InsertBookingHistory = z.infer<typeof insertBookingHistorySchema>;
 export type Passenger = typeof passengers.$inferSelect;
 export type InsertPassenger = z.infer<typeof insertPassengerSchema>;
+export type LoyaltyTier = typeof loyaltyTiers.$inferSelect;
+export type InsertLoyaltyTier = z.infer<typeof insertLoyaltyTierSchema>;
+export type LoyaltyBundle = typeof loyaltyBundles.$inferSelect;
+export type InsertLoyaltyBundle = z.infer<typeof insertLoyaltyBundleSchema>;
+export type PointsTransaction = typeof pointsTransactions.$inferSelect;
+export type InsertPointsTransaction = z.infer<typeof insertPointsTransactionSchema>;
+export type TierHistory = typeof tierHistory.$inferSelect;
+export type InsertTierHistory = z.infer<typeof insertTierHistorySchema>;
 
 // Additional schemas for frontend
 export const loginSchema = z.object({
