@@ -705,9 +705,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async addWalletTransaction(userId: number, amount: number, type: 'credit' | 'debit', description: string): Promise<void> {
-    // This would be implemented with a transactions table in a real system
-    // For now, we'll just log it
-    console.log(`Wallet ${type}: User ${userId}, Amount: ${amount}, Description: ${description}`);
+    // Log the transaction
+    console.log(`Wallet ${type}: User ${userId}, Amount: ${amount.toFixed(2)}, Description: ${description}`);
+    
+    // Update the wallet balance in the database
+    const adjustedAmount = type === 'credit' ? amount : -amount;
+    await this.updateWalletBalance(userId, adjustedAmount);
   }
 
   // Booking history methods
