@@ -21,6 +21,9 @@ interface CartState {
   getTaxes: () => number;
   getTotal: () => number;
   getItemCount: () => number;
+  // Navigation callback for when flights are removed
+  onFlightRemoved?: () => void;
+  setOnFlightRemoved: (callback: (() => void) | undefined) => void;
 }
 
 // Helper function to check if user is authenticated
