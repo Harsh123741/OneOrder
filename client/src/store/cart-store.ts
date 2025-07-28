@@ -7,12 +7,14 @@ interface CartState {
   items: CartItem[];
   isOpen: boolean;
   isLoading: boolean;
+  currentUserId: number | null;
   addItem: (item: CartItem) => Promise<void>;
   removeItem: (id: string) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
   syncCart: () => Promise<void>;
   loadCartFromStorage: () => Promise<void>;
+  setCurrentUser: (userId: number | null) => void;
   toggleCart: () => void;
   setCartOpen: (open: boolean) => void;
   getSubtotal: () => number;
@@ -27,12 +29,26 @@ const isAuthenticated = () => {
   return !!token;
 };
 
+// Helper function to get current user ID from token
+const getCurrentUserId = (): number | null => {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.userId || null;
+  } catch {
+    return null;
+  }
+};
+
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
       isOpen: false,
       isLoading: false,
+      currentUserId: null,
       
       addItem: async (item) => {
         try {
@@ -172,8 +188,21 @@ export const useCartStore = create<CartState>()(
         }
       },
       
+      setCurrentUser: (userId: number | null) => {
+        const currentUserId = get().currentUserId;
+        
+        // If user changed, clear cart to prevent showing wrong user's items
+        if (currentUserId !== userId) {
+          set({ currentUserId: userId, items: [] });
+        }
+      },
+      
       syncCart: async () => {
-        if (!isAuthenticated()) return;
+        if (!isAuthenticated()) {
+          // Clear cart if not authenticated
+          set({ items: [] });
+          return;
+        }
         
         try {
           set({ isLoading: true });
@@ -196,9 +225,12 @@ export const useCartStore = create<CartState>()(
             details: dbItem.details,
           }));
           
+          // Always replace items completely to ensure user-specific cart
           set({ items: convertedItems });
         } catch (error) {
           console.error('Failed to sync cart:', error);
+          // Clear cart on error to avoid showing wrong user's items
+          set({ items: [] });
         } finally {
           set({ isLoading: false });
         }

@@ -1,19 +1,31 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 
 export function CartSync() {
   const { user } = useAuth();
-  const { loadCartFromStorage } = useCart();
+  const { syncCart, clearCart, setCurrentUser } = useCart();
+  const previousUserIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Load cart when user authentication state changes
-    if (user) {
-      // User is logged in, sync with database
-      loadCartFromStorage();
+    const currentUserId = user?.id || null;
+    const previousUserId = previousUserIdRef.current;
+
+    // Always update the current user in cart store to handle user switching
+    setCurrentUser(currentUserId);
+
+    // If user changed (including login/logout), handle cart sync
+    if (currentUserId !== previousUserId) {
+      if (currentUserId) {
+        // User logged in or switched - sync with their cart
+        syncCart();
+      }
+      // Note: clearCart is now handled by setCurrentUser when user changes
+      
+      // Update the ref with current user ID
+      previousUserIdRef.current = currentUserId;
     }
-    // If user logs out, cart will persist in localStorage via zustand persist middleware
-  }, [user, loadCartFromStorage]);
+  }, [user, syncCart, clearCart, setCurrentUser]);
 
   return null; // This is a utility component that doesn't render anything
 }
