@@ -9,7 +9,7 @@ import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import FareHoldButton from "@/components/fare-hold-button";
 import { FareHoldModal } from "@/components/fare-hold-modal";
 import { FareHoldNotification } from "@/components/fare-hold-notification";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
 interface FlightCardProps {
@@ -21,26 +21,27 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
   const { addFlight, items } = useCart();
   const [isFareHoldModalOpen, setIsFareHoldModalOpen] = useState(false);
-  const [simulatedPrice, setSimulatedPrice] = useState<number | null>(null);
+  const [showPriceAlert, setShowPriceAlert] = useState(false);
+  const [originalPrice] = useState(parseFloat(flight.price));
   const queryClient = useQueryClient();
 
-  // Simulate price increase for demonstration
+  // Get current dynamic pricing
+  const { data: pricingData } = useQuery({
+    queryKey: [`/api/pricing/flight/${flight.id}`],
+    refetchInterval: 30000, // Check every 30 seconds
+    enabled: !!flight.id,
+  });
+
+  // Simulate price increase for testing
   const simulatePriceIncrease = useMutation({
     mutationFn: async () => {
-      // Simulate a price increase by recording a booking
       await apiRequest("POST", `/api/pricing/flight/${flight.id}/record-booking`, { quantity: 3 });
       return apiRequest("GET", `/api/pricing/flight/${flight.id}`);
     },
-    onSuccess: (data) => {
-      if (data && typeof data === 'object' && 'currentPrice' in data) {
-        const newPrice = parseFloat(data.currentPrice as string);
-        const originalPrice = parseFloat(flight.price);
-        if (newPrice > originalPrice) {
-          setSimulatedPrice(newPrice);
-          setIsFareHoldModalOpen(true);
-        }
-      }
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/pricing/flight/${flight.id}`] });
+      // Show price alert after a brief delay to let the price update
+      setTimeout(() => setShowPriceAlert(true), 1000);
     }
   });
 
@@ -89,12 +90,29 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
     }
   };
 
+  const currentPrice = pricingData?.currentPrice ? parseFloat(pricingData.currentPrice) : originalPrice;
+
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-airline-blue/30">
-      <CardContent className="p-0">
-        <div className="flex flex-col xl:flex-row">
-          {/* Flight Info */}
-          <div className="flex-1 p-4 sm:p-6">
+    <div className="space-y-3">
+      {/* Price Alert Notification */}
+      <FareHoldNotification
+        isVisible={showPriceAlert && currentPrice > originalPrice}
+        currentPrice={currentPrice}
+        originalPrice={originalPrice}
+        flightNumber={flight.flightNumber}
+        route={`${flight.departureAirport} → ${flight.arrivalAirport}`}
+        onOpenModal={() => {
+          setShowPriceAlert(false);
+          setIsFareHoldModalOpen(true);
+        }}
+        onDismiss={() => setShowPriceAlert(false)}
+      />
+
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-airline-blue/30">
+        <CardContent className="p-0">
+          <div className="flex flex-col xl:flex-row">
+            {/* Flight Info */}
+            <div className="flex-1 p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
               <div className="flex items-center gap-3 mb-2 sm:mb-0">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-airline-blue rounded-full flex items-center justify-center">
@@ -173,6 +191,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 showFareHold={true}
                 className="text-sm"
                 isFlightInCart={items.some(item => item.type === 'flight' && item.id === flight.id)}
+                onPriceIncrease={() => setIsFareHoldModalOpen(true)}
               />
 
               <div className="space-y-2">
@@ -183,7 +202,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   Select Flight
                 </Button>
 
-                {/* Simulation Button for Demonstration */}
+                {/* Test Price Increase Button */}
                 <Button
                   onClick={() => simulatePriceIncrease.mutate()}
                   disabled={simulatePriceIncrease.isPending}
@@ -192,7 +211,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   className="w-full text-xs border-orange-200 text-orange-600 hover:bg-orange-50"
                 >
                   <TrendingUp className="h-3 w-3 mr-1" />
-                  {simulatePriceIncrease.isPending ? "Simulating..." : "Demo: Trigger Price Increase"}
+                  {simulatePriceIncrease.isPending ? "Simulating..." : "Test Price Increase"}
                 </Button>
 
                 <div className="text-xs text-gray-500 text-center">
@@ -210,7 +229,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
         isOpen={isFareHoldModalOpen}
         onClose={() => setIsFareHoldModalOpen(false)}
         flightId={flight.id}
-        currentPrice={simulatedPrice || parseFloat(flight.price)}
+        currentPrice={parseFloat(flight.price)}
         originalPrice={parseFloat(flight.price)}
         flightNumber={flight.flightNumber}
         route={`${flight.departureAirport} → ${flight.arrivalAirport}`}

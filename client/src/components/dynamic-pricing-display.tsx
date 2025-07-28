@@ -15,6 +15,7 @@ interface DynamicPricingDisplayProps {
   showFareHold?: boolean;
   className?: string;
   isFlightInCart?: boolean;
+  onPriceIncrease?: () => void;
 }
 
 export default function DynamicPricingDisplay({
@@ -24,6 +25,7 @@ export default function DynamicPricingDisplay({
   showFareHold = true,
   className = "",
   isFlightInCart = false,
+  onPriceIncrease,
 }: DynamicPricingDisplayProps) {
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [priceChangeDirection, setPriceChangeDirection] = useState<
@@ -71,6 +73,10 @@ export default function DynamicPricingDisplay({
       if (lastPrice !== null) {
         if (newPrice > lastPrice) {
           setPriceChangeDirection("up");
+          // Trigger fare hold modal if price increased and user doesn't have an active hold
+          if (onPriceIncrease && !fareHold && !isFlightInCart) {
+            onPriceIncrease();
+          }
         } else if (newPrice < lastPrice) {
           setPriceChangeDirection("down");
         } else {
@@ -80,22 +86,20 @@ export default function DynamicPricingDisplay({
 
       setLastPrice(newPrice);
     }
-  }, [pricingData, lastPrice]);
+  }, [pricingData, lastPrice, onPriceIncrease, fareHold, isFlightInCart]);
 
   // Fare hold mutation
   const fareHoldMutation = useMutation({
     mutationFn: (data: any) =>
-      apiRequest(`/api/fare-hold`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/fare-hold", data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/fare-hold", flightId] });
+      const fareHoldData = data as any;
       toast({
         title: "Fare Hold Added!",
         description: `Price locked at $${parseFloat(
-          data.lockedFarePrice,
-        ).toFixed(2)} until ${new Date(data.expiresAt).toLocaleDateString()}`,
+          fareHoldData.fareHold?.lockedFarePrice || "0",
+        ).toFixed(2)} until ${new Date(fareHoldData.fareHold?.expiresAt || Date.now()).toLocaleDateString()}`,
       });
     },
     onError: (error: any) => {
