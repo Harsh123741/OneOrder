@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
-import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users } from "lucide-react";
+import { CartRefresh } from "@/components/cart/cart-refresh";
+import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
+import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw } from "lucide-react";
 
 export default function Services() {
   const [, setLocation] = useLocation();
@@ -38,24 +39,18 @@ export default function Services() {
     }
   }, [setLocation]);
 
-  const { data: services = [] } = useQuery({
-    queryKey: ["/api/services", currentPhase, selectedFlight?.fareHold ? 'with-fare-hold' : 'no-fare-hold'],
-    queryFn: async () => {
-      const response = await fetch(`/api/services?phase=${currentPhase}`);
-      const allServices = await response.json();
-      
-      // Filter out fare hold services if user already has an active fare hold
-      if (selectedFlight?.fareHold) {
-        return allServices.filter((service: any) => 
-          service.category !== 'booking_protection' || 
-          !service.name.toLowerCase().includes('fare hold')
-        );
-      }
-      
-      return allServices;
-    },
-    enabled: !!selectedFlight
+  const { services, isLoading: servicesLoading, refreshPricing } = useDynamicPricing(currentPhase, {
+    enabled: !!selectedFlight,
+    interval: 30000, // Refresh every 30 seconds
   });
+
+  // Filter out fare hold services if user already has an active fare hold
+  const filteredServices = selectedFlight?.fareHold 
+    ? services.filter((service: any) => 
+        service.category !== 'booking_protection' || 
+        !service.name.toLowerCase().includes('fare hold')
+      )
+    : services;
 
   const handleBack = () => {
     setLocation("/booking");
@@ -226,11 +221,23 @@ export default function Services() {
                   Select services for each of your {passengerCount} passengers individually.
                 </p>
               </div>
-              <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
-                <Users className="w-4 h-4 text-blue-600" />
-                <span className="text-sm font-medium text-blue-800">
-                  {passengerCount} Passengers
-                </span>
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={refreshPricing}
+                  disabled={servicesLoading}
+                  className="flex items-center space-x-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${servicesLoading ? 'animate-spin' : ''}`} />
+                  <span>Refresh Prices</span>
+                </Button>
+                <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    {passengerCount} Passengers
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -288,17 +295,19 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {services.map((service: any) => (
-                    <ServiceCardEnhanced 
-                      key={`${service.id}-passenger-${currentPassenger}`} 
-                      service={service} 
-                      phase={currentPhase} 
-                      passengerId={currentPassenger}
-                    />
-                  ))}
+                  {filteredServices
+                    .filter(service => service.phase === currentPhase)
+                    .map((service: any) => (
+                      <ServiceCardEnhanced 
+                        key={`${service.id}-passenger-${currentPassenger}`} 
+                        service={service} 
+                        phase={currentPhase} 
+                        passengerId={currentPassenger}
+                      />
+                    ))}
                 </div>
 
-                {services.length === 0 && (
+                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
@@ -351,12 +360,14 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {services.map((service: any) => (
-                    <ServiceCardEnhanced key={service.id} service={service} phase={currentPhase} />
-                  ))}
+                  {filteredServices
+                    .filter(service => service.phase === currentPhase)
+                    .map((service: any) => (
+                      <ServiceCardEnhanced key={service.id} service={service} phase={currentPhase} />
+                    ))}
                 </div>
 
-                {services.length === 0 && (
+                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
@@ -365,6 +376,9 @@ export default function Services() {
             </Tabs>
           </div>
         )}
+
+        {/* Cart refresh for real-time pricing updates */}
+        <CartRefresh enabled={true} interval={60000} />
 
         {/* Navigation Buttons */}
         <div className="flex justify-between">

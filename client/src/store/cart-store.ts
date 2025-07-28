@@ -93,6 +93,31 @@ export const useCartStore = create<CartState>()(
               details: item.details || {},
             };
             
+            // For services, get latest pricing before adding to cart
+            if (item.type === 'service' && item.serviceId) {
+              try {
+                const serviceResponse = await apiRequest('GET', `/api/services/${item.serviceId}`);
+                const serviceData = await serviceResponse.json();
+                
+                if (serviceData.dynamicPricing) {
+                  // Update item and cartItemData with latest dynamic pricing
+                  const currentPrice = serviceData.dynamicPricing.currentPrice.toString();
+                  item.price = parseFloat(currentPrice);
+                  cartItemData.price = currentPrice;
+                  cartItemData.details = {
+                    ...cartItemData.details,
+                    dynamicPricing: serviceData.dynamicPricing
+                  };
+                  item.details = {
+                    ...item.details,
+                    dynamicPricing: serviceData.dynamicPricing
+                  };
+                }
+              } catch (pricingError) {
+                console.warn('Failed to get latest service pricing:', pricingError);
+              }
+            }
+            
             console.log('Cart add: Saving item to database:', cartItemData);
             const response = await apiRequest('POST', '/api/cart/add', cartItemData);
             const savedItem = await response.json();

@@ -468,7 +468,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const phase = req.query.phase as string;
       const services = await storage.getServices(phase);
-      res.json(services);
+      
+      // Add dynamic pricing to services
+      const servicesWithPricing = await Promise.all(
+        services.map(async (service) => {
+          try {
+            // Initialize service pricing if not exists
+            await dynamicPricingService.initializeServicePricing(service.id, parseFloat(service.price));
+            
+            // Get current pricing
+            const pricing = await dynamicPricingService.getServicePrice(service.id);
+            
+            if (pricing) {
+              const basePrice = parseFloat(pricing.basePrice);
+              const currentPrice = parseFloat(pricing.currentPrice);
+              const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
+              
+              return {
+                ...service,
+                basePrice: basePrice.toFixed(2),
+                price: currentPrice.toFixed(2),
+                dynamicPricing: {
+                  basePrice,
+                  currentPrice,
+                  demandMultiplier: parseFloat(pricing.demandMultiplier || "1.0"),
+                  inventoryLevel: pricing.inventoryLevel || 100,
+                  totalBookings: pricing.totalBookings || 0,
+                  lastUpdated: pricing.lastUpdated,
+                  pricingTag
+                }
+              };
+            }
+            
+            return service;
+          } catch (pricingError) {
+            console.error(`Service pricing error for service ${service.id}:`, pricingError);
+            return service;
+          }
+        })
+      );
+      
+      res.json(servicesWithPricing);
     } catch (error) {
       console.error("Error fetching services:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -482,6 +522,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
+      }
+      
+      try {
+        // Get dynamic pricing for individual service
+        await dynamicPricingService.initializeServicePricing(serviceId, parseFloat(service.price));
+        const pricing = await dynamicPricingService.getServicePrice(serviceId);
+        
+        if (pricing) {
+          const basePrice = parseFloat(pricing.basePrice);
+          const currentPrice = parseFloat(pricing.currentPrice);
+          const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
+          
+          const serviceWithPricing = {
+            ...service,
+            basePrice: basePrice.toFixed(2),
+            price: currentPrice.toFixed(2),
+            dynamicPricing: {
+              basePrice,
+              currentPrice,
+              demandMultiplier: parseFloat(pricing.demandMultiplier || "1.0"),
+              inventoryLevel: pricing.inventoryLevel || 100,
+              totalBookings: pricing.totalBookings || 0,
+              lastUpdated: pricing.lastUpdated,
+              pricingTag
+            }
+          };
+          
+          return res.json(serviceWithPricing);
+        }
+      } catch (pricingError) {
+        console.error(`Service pricing error for service ${serviceId}:`, pricingError);
       }
       
       res.json(service);
@@ -1554,6 +1625,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       console.error("Remove cart item error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Service dynamic pricing update route
+  app.post("/api/services/:id/update-pricing", async (req, res) => {
+    try {
+      const serviceId = parseInt(req.params.id);
+      const updatedPricing = await dynamicPricingService.updateServicePricing(serviceId);
+      
+      if (!updatedPricing) {
+        return res.status(404).json({ message: "Service pricing not found" });
+      }
+      
+      res.json(updatedPricing);
+    } catch (error) {
+      console.error("Service pricing update error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

@@ -4,11 +4,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Minus, ShoppingCart } from "lucide-react";
+import { Plus, Minus, ShoppingCart, TrendingUp, TrendingDown } from "lucide-react";
 import type { Service } from "@shared/schema";
 
 interface ServiceCardEnhancedProps {
-  service: Service;
+  service: Service & {
+    basePrice?: string;
+    dynamicPricing?: {
+      basePrice: number;
+      currentPrice: number;
+      demandMultiplier: number;
+      inventoryLevel: number;
+      totalBookings: number;
+      lastUpdated: string;
+      pricingTag: {
+        tag: string;
+        message: string;
+        variant: 'destructive' | 'default' | 'secondary';
+      };
+    };
+  };
   phase: string;
   passengerId?: number;
 }
@@ -143,10 +158,40 @@ export default function ServiceCardEnhanced({ service, phase, passengerId }: Ser
           <CardTitle className="text-lg font-semibold text-gray-900 leading-tight">
             {service.name}
           </CardTitle>
-          <div className="text-right">
-            <div className="text-xl font-bold text-airline-blue">
-              {parseFloat(service.price) === 0 ? "Free" : `$${service.price}`}
-            </div>
+          <div className="text-right flex flex-col items-end gap-1">
+            {/* Dynamic Pricing Tags */}
+            {service.dynamicPricing?.pricingTag?.tag && (
+              <Badge variant={service.dynamicPricing.pricingTag.variant} className="text-xs">
+                {service.dynamicPricing.pricingTag.tag}
+              </Badge>
+            )}
+            
+            {/* Price Display */}
+            {service.dynamicPricing && service.dynamicPricing.basePrice !== service.dynamicPricing.currentPrice ? (
+              <div className="flex flex-col items-end">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm line-through text-gray-400">
+                    ${service.dynamicPricing.basePrice.toFixed(2)}
+                  </span>
+                  <div className="text-xl font-bold text-airline-blue">
+                    ${service.dynamicPricing.currentPrice.toFixed(2)}
+                  </div>
+                  {service.dynamicPricing.currentPrice > service.dynamicPricing.basePrice ? (
+                    <TrendingUp className="h-4 w-4 text-red-500" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-green-500" />
+                  )}
+                </div>
+                <span className={`text-xs ${service.dynamicPricing.currentPrice > service.dynamicPricing.basePrice ? 'text-red-600' : 'text-green-600'}`}>
+                  {service.dynamicPricing.currentPrice > service.dynamicPricing.basePrice ? '+' : '-'}
+                  ${Math.abs(service.dynamicPricing.currentPrice - service.dynamicPricing.basePrice).toFixed(2)}
+                </span>
+              </div>
+            ) : (
+              <div className="text-xl font-bold text-airline-blue">
+                {parseFloat(service.price) === 0 ? "Free" : `$${service.price}`}
+              </div>
+            )}
           </div>
         </div>
         {service.tag && (
@@ -165,14 +210,19 @@ export default function ServiceCardEnhanced({ service, phase, passengerId }: Ser
         
         <div className="flex items-center justify-between">
           <div className="text-xs text-gray-500">
-            {service.inventory > 10 ? "Available" : 
-             service.inventory > 0 ? `Only ${service.inventory} left` : "Sold out"}
+            {service.dynamicPricing ? (
+              service.dynamicPricing.inventoryLevel > 10 ? "Available" : 
+              service.dynamicPricing.inventoryLevel > 0 ? `Only ${service.dynamicPricing.inventoryLevel} left` : "Sold out"
+            ) : (
+              service.inventory > 10 ? "Available" : 
+              service.inventory > 0 ? `Only ${service.inventory} left` : "Sold out"
+            )}
           </div>
           
           {currentQuantity === 0 ? (
             <Button
               onClick={handleAddToCart}
-              disabled={service.inventory === 0}
+              disabled={(service.dynamicPricing ? service.dynamicPricing.inventoryLevel : service.inventory) === 0}
               size="sm"
               className="flex items-center gap-2 min-w-[100px]"
             >
@@ -194,7 +244,7 @@ export default function ServiceCardEnhanced({ service, phase, passengerId }: Ser
                 variant="outline"
                 size="sm"
                 onClick={handleIncrement}
-                disabled={service.inventory === 0 || currentQuantity >= maxQuantity}
+                disabled={(service.dynamicPricing ? service.dynamicPricing.inventoryLevel : service.inventory) === 0 || currentQuantity >= maxQuantity}
                 className="w-8 h-8 p-0"
               >
                 <Plus className="w-4 h-4" />

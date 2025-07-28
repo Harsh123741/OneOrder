@@ -2,8 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCart } from "@/hooks/use-cart";
-import { Trash2, X } from "lucide-react";
+import { Trash2, X, TrendingUp, TrendingDown } from "lucide-react";
 import { useLocation } from "wouter";
+import { PriceChangeNotification } from "@/components/notifications/price-change-notification";
 
 export default function CartSidebar() {
   const { 
@@ -69,6 +70,53 @@ export default function CartSidebar() {
                     </Button>
                   </div>
                   
+                  {/* Dynamic Pricing Display for Services */}
+                  {item.type === 'service' && item.details?.dynamicPricing && (
+                    <div className="space-y-2">
+                      {/* Pricing Tag */}
+                      {item.details.dynamicPricing.pricingTag?.tag && (
+                        <Badge 
+                          variant={item.details.dynamicPricing.pricingTag.variant}
+                          className="text-xs"
+                        >
+                          {item.details.dynamicPricing.pricingTag.tag}
+                        </Badge>
+                      )}
+                      
+                      {/* Price Display with Cross-out */}
+                      {item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="line-through text-gray-400">
+                            ${item.details.dynamicPricing.basePrice}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${item.details.dynamicPricing.currentPrice}
+                          </span>
+                          {item.details.dynamicPricing.currentPrice > item.details.dynamicPricing.basePrice ? (
+                            <TrendingUp className="h-3 w-3 text-red-500" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3 text-green-500" />
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Price Difference */}
+                      {item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="text-xs">
+                          {item.details.dynamicPricing.currentPrice > item.details.dynamicPricing.basePrice ? (
+                            <span className="text-red-600">
+                              +${(item.details.dynamicPricing.currentPrice - item.details.dynamicPricing.basePrice).toFixed(2)} increase
+                            </span>
+                          ) : (
+                            <span className="text-green-600">
+                              -${(item.details.dynamicPricing.basePrice - item.details.dynamicPricing.currentPrice).toFixed(2)} decrease
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">
                       Quantity: {item.quantity}
@@ -110,6 +158,9 @@ export default function CartSidebar() {
             </div>
           )}
         </div>
+        
+        {/* Price Change Notifications */}
+        <PriceChangeNotification cartItems={items} />
       </SheetContent>
     </Sheet>
   );

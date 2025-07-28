@@ -57,7 +57,7 @@ export class DynamicPricingService {
   }
 
   // Initialize dynamic pricing for services
-  async initializeServicePricing(serviceId: number, basePrice: number, inventory: number) {
+  async initializeServicePricing(serviceId: number, basePrice: number, inventory: number = 100) {
     const existingPricing = await db.select().from(dynamicPricing)
       .where(and(
         eq(dynamicPricing.entityType, 'service'),
@@ -77,6 +77,102 @@ export class DynamicPricingService {
       demandMultiplier: "1.000",
       timeMultiplier: "1.000"
     }).returning();
+
+    return pricing;
+  }
+
+  // Update service pricing based on demand
+  async updateServicePricing(serviceId: number) {
+    const [pricing] = await db.select().from(dynamicPricing)
+      .where(and(
+        eq(dynamicPricing.entityType, 'service'),
+        eq(dynamicPricing.entityId, serviceId)
+      )).limit(1);
+
+    if (!pricing) return null;
+
+    // Calculate demand multiplier based on inventory and bookings
+    const totalBookings = pricing.totalBookings || 0;
+    const inventoryLevel = pricing.inventoryLevel || 100;
+    
+    // Demand-based pricing logic for services
+    let demandMultiplier = 1.0;
+    if (inventoryLevel < 10) {
+      demandMultiplier = 1.5; // 50% increase when very low stock
+    } else if (inventoryLevel < 25) {
+      demandMultiplier = 1.3; // 30% increase when low stock
+    } else if (totalBookings > 50) {
+      demandMultiplier = 1.2; // 20% increase when high demand
+    } else if (totalBookings > 20) {
+      demandMultiplier = 1.1; // 10% increase when medium demand
+    }
+
+    // Random fluctuation for dynamic feel (±5%)
+    const fluctuation = (Math.random() - 0.5) * 0.1;
+    demandMultiplier += fluctuation;
+    demandMultiplier = Math.max(0.8, Math.min(2.0, demandMultiplier)); // Cap between 80% and 200%
+
+    const basePrice = parseFloat(pricing.basePrice);
+    const newPrice = Math.round(basePrice * demandMultiplier * 100) / 100;
+
+    // Update pricing
+    const [updatedPricing] = await db.update(dynamicPricing)
+      .set({
+        currentPrice: newPrice.toString(),
+        demandMultiplier: demandMultiplier.toFixed(3),
+        lastUpdated: new Date()
+      })
+      .where(eq(dynamicPricing.id, pricing.id))
+      .returning();
+
+    // Log price history
+    await db.insert(priceHistory).values({
+      entityType: 'service',
+      entityId: serviceId,
+      price: newPrice.toString(),
+      timestamp: new Date()
+    });
+
+    return updatedPricing;
+  }
+
+  // Get pricing tag for service based on demand and inventory
+  getServicePricingTag(pricing: any): { tag: string; message: string; variant: 'destructive' | 'default' | 'secondary' } {
+    const inventoryLevel = pricing.inventoryLevel || 100;
+    const demandMultiplier = parseFloat(pricing.demandMultiplier || "1.0");
+    const totalBookings = pricing.totalBookings || 0;
+
+    if (inventoryLevel < 5) {
+      return { tag: 'LAST FEW!', message: 'Only few left!', variant: 'destructive' };
+    } else if (inventoryLevel < 15) {
+      return { tag: 'LOW STOCK', message: 'Limited availability', variant: 'destructive' };
+    } else if (demandMultiplier > 1.3) {
+      return { tag: 'HIGH DEMAND', message: 'Price increased due to demand', variant: 'destructive' };
+    } else if (totalBookings > 30) {
+      return { tag: 'POPULAR', message: 'Booking fast', variant: 'secondary' };
+    } else if (demandMultiplier < 0.9) {
+      return { tag: 'DEAL', message: 'Special price', variant: 'default' };
+    }
+    
+    return { tag: '', message: '', variant: 'default' };
+  }
+
+  // Get current service price with dynamic pricing
+  async getServicePrice(serviceId: number) {
+    const [pricing] = await db.select().from(dynamicPricing)
+      .where(and(
+        eq(dynamicPricing.entityType, 'service'),
+        eq(dynamicPricing.entityId, serviceId)
+      )).limit(1);
+
+    if (!pricing) {
+      // Initialize if doesn't exist
+      const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+      if (service) {
+        return await this.initializeServicePricing(serviceId, parseFloat(service.price));
+      }
+      return null;
+    }
 
     return pricing;
   }
