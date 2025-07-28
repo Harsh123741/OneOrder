@@ -13,15 +13,20 @@ export function CartSync() {
 
     // If user changed (including login/logout), handle cart sync
     if (currentUserId !== previousUserId) {
+      console.log(`Cart sync: User changed from ${previousUserId} to ${currentUserId}`);
+      
       // Always update the current user in cart store to handle user switching
       setCurrentUser(currentUserId);
       
       if (currentUserId) {
+        console.log(`Cart sync: User logged in (ID: ${currentUserId}), syncing cart...`);
         // User logged in or switched - sync with their cart from database
         // Add a small delay to ensure the user state is properly set
         setTimeout(() => {
           syncCart();
         }, 100);
+      } else {
+        console.log('Cart sync: User logged out, cart cleared');
       }
       // Note: clearCart is now handled by setCurrentUser when user changes
       

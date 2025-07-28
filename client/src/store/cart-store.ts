@@ -70,8 +70,10 @@ export const useCartStore = create<CartState>()(
               details: item.details || {},
             };
             
+            console.log('Cart add: Saving item to database:', cartItemData);
             const response = await apiRequest('POST', '/api/cart/add', cartItemData);
             const savedItem = await response.json();
+            console.log('Cart add: Item saved successfully:', savedItem);
             
             // Update the item with database ID for future operations
             item.databaseId = savedItem.id;
@@ -232,14 +234,18 @@ export const useCartStore = create<CartState>()(
       syncCart: async () => {
         if (!isAuthenticated()) {
           // Clear cart if not authenticated
+          console.log('Cart sync: User not authenticated, clearing cart');
           set({ items: [] });
           return;
         }
         
         try {
+          console.log('Cart sync: Loading cart from database...');
           set({ isLoading: true });
           const response = await apiRequest('GET', '/api/cart');
           const dbCartItems = await response.json();
+          
+          console.log('Cart sync: Received cart items from database:', dbCartItems);
           
           // Convert database cart items to local cart format
           const convertedItems = dbCartItems.map((dbItem: any) => ({
@@ -256,6 +262,8 @@ export const useCartStore = create<CartState>()(
             passengerId: dbItem.passengerId,
             details: dbItem.details,
           }));
+          
+          console.log('Cart sync: Converted items:', convertedItems);
           
           // Always replace items completely to ensure user-specific cart
           set({ items: convertedItems });
