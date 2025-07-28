@@ -365,8 +365,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Check for active fare hold if user is authenticated
             let fareHoldPrice = null;
+            let fareHold = [];
             if (userId) {
-              const fareHold = await dynamicPricingService.getUserFareHold(userId, flight.id);
+              fareHold = await dynamicPricingService.getUserFareHold(userId, flight.id);
               if (fareHold.length > 0) {
                 fareHoldPrice = fareHold[0].lockedFarePrice;
               }
@@ -388,7 +389,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   totalBookings: currentPricing.totalBookings,
                   inventoryLevel: currentPricing.inventoryLevel,
                   lastUpdated: currentPricing.lastUpdated,
-                  isLocked: !!fareHoldPrice
+                  isLocked: !!fareHoldPrice,
+                  userFareHold: fareHold.length > 0 ? fareHold[0] : null // Include fare hold info for this specific user
                 }
               };
             }

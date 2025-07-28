@@ -144,6 +144,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               flightId={flight.id}
               currentPrice={parseFloat(flight.price)}
               className="text-sm"
+              userFareHold={flight.dynamicPricing?.userFareHold}
             />
 
             <div className="space-y-2">

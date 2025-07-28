@@ -13,21 +13,18 @@ interface FareHoldButtonProps {
   flightId: number;
   currentPrice: number;
   className?: string;
+  userFareHold?: any; // Pass fare hold data from flight search response
 }
 
-export default function FareHoldButton({ flightId, currentPrice, className = "" }: FareHoldButtonProps) {
+export default function FareHoldButton({ flightId, currentPrice, className = "", userFareHold }: FareHoldButtonProps) {
   const { addService } = useCart();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedHold, setSelectedHold] = useState<{duration: number, price: number} | null>(null);
 
-  // Check for existing fare hold
-  const { data: fareHold } = useQuery({
-    queryKey: ['/api/fare-hold', flightId],
-    enabled: !!flightId,
-    retry: false
-  });
+  // Use fare hold data passed from flight search response
+  const fareHold = userFareHold;
 
   // Mutation for creating fare hold
   const createFareHoldMutation = useMutation({
@@ -45,7 +42,8 @@ export default function FareHoldButton({ flightId, currentPrice, className = "" 
         title: "Fare Hold Created",
         description: `Flight price locked at $${currentPrice.toFixed(2)} for ${selectedHold?.duration} hours`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/fare-hold', flightId] });
+      // Refresh flight search to get updated fare hold data
+      queryClient.invalidateQueries({ queryKey: ['/api/flights/search'] });
       setPaymentModalOpen(false);
       setSelectedHold(null);
     },
