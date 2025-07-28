@@ -1,12 +1,12 @@
 import { 
   users, flights, seats, services, orders, bookingHistory, passengers,
-  loyaltyTiers, loyaltyBundles, pointsTransactions, tierHistory,
+  loyaltyTiers, loyaltyBundles, pointsTransactions, tierHistory, dynamicPricing, fareHolds,
   type User, type InsertUser, type Flight, type InsertFlight,
   type Seat, type InsertSeat, type Service, type InsertService,
   type Order, type InsertOrder, type BookingHistory, type InsertBookingHistory,
   type Passenger, type InsertPassenger, type LoyaltyTier, type InsertLoyaltyTier,
   type LoyaltyBundle, type InsertLoyaltyBundle, type PointsTransaction, type InsertPointsTransaction,
-  type TierHistory, type InsertTierHistory
+  type TierHistory, type InsertTierHistory, type DynamicPricing, type FareHold
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { db } from "./db";
@@ -67,6 +67,13 @@ export interface IStorage {
   createPassenger(passenger: InsertPassenger): Promise<Passenger>;
   updatePassenger(id: number, updates: Partial<Passenger>): Promise<Passenger | undefined>;
   deletePassenger(id: number): Promise<boolean>;
+  
+  // Loyalty methods
+  getLoyaltyTiers(): Promise<LoyaltyTier[]>;
+  getLoyaltyTier(tierName: string): Promise<LoyaltyTier | undefined>;
+  getLoyaltyBundles(tierName: string, phase?: string): Promise<LoyaltyBundle[]>;
+  updateUserLoyaltyStats(userId: number, order: Order, flight: Flight): Promise<void>;
+  getUserLoyaltyStatus(userId: number): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {

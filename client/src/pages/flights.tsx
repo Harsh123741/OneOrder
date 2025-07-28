@@ -14,6 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import FlightCard from "@/components/flight/flight-card";
+import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import { apiRequest } from "@/lib/queryClient";
 import { Filter, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";

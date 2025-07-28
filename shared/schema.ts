@@ -187,6 +187,61 @@ export const tierHistory = pgTable("tier_history", {
   isDowngrade: boolean("is_downgrade").default(false),
 });
 
+// Dynamic Pricing Configuration
+export const dynamicPricing = pgTable("dynamic_pricing", {
+  id: serial("id").primaryKey(),
+  entityType: text("entity_type").notNull(), // flight, seat, service
+  entityId: integer("entity_id").notNull(), // ID of the flight/seat/service
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull(),
+  demandMultiplier: decimal("demand_multiplier", { precision: 4, scale: 3 }).default("1.000"),
+  timeMultiplier: decimal("time_multiplier", { precision: 4, scale: 3 }).default("1.000"),
+  inventoryLevel: integer("inventory_level").notNull(),
+  totalBookings: integer("total_bookings").default(0),
+  recentBookings: integer("recent_bookings").default(0), // Last 24 hours
+  lastUpdated: timestamp("last_updated").defaultNow(),
+  isActive: boolean("is_active").default(true),
+});
+
+// Price History for Analytics
+export const priceHistory = pgTable("price_history", {
+  id: serial("id").primaryKey(),
+  pricingId: integer("pricing_id").references(() => dynamicPricing.id).notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  demandMultiplier: decimal("demand_multiplier", { precision: 4, scale: 3 }).notNull(),
+  timeMultiplier: decimal("time_multiplier", { precision: 4, scale: 3 }).notNull(),
+  totalBookings: integer("total_bookings").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+// Fare Hold Service
+export const fareHolds = pgTable("fare_holds", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  flightId: integer("flight_id").references(() => flights.id).notNull(),
+  holdDuration: integer("hold_duration").notNull(), // Duration in hours
+  holdPrice: decimal("hold_price", { precision: 10, scale: 2 }).notNull(), // Price to hold the fare
+  lockedFarePrice: decimal("locked_fare_price", { precision: 10, scale: 2 }).notNull(), // Locked flight price
+  expiresAt: timestamp("expires_at").notNull(),
+  isActive: boolean("is_active").default(true),
+  isUsed: boolean("is_used").default(false),
+  paymentStatus: text("payment_status").default("paid"), // paid, pending
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Real-time Price Monitoring
+export const priceMonitoring = pgTable("price_monitoring", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  entityType: text("entity_type").notNull(), // flight, seat, service
+  entityId: integer("entity_id").notNull(),
+  targetPrice: decimal("target_price", { precision: 10, scale: 2 }).notNull(),
+  currentPrice: decimal("current_price", { precision: 10, scale: 2 }).notNull(),
+  alertTriggered: boolean("alert_triggered").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -247,6 +302,26 @@ export const insertTierHistorySchema = createInsertSchema(tierHistory).omit({
   upgradeDate: true,
 });
 
+export const insertDynamicPricingSchema = createInsertSchema(dynamicPricing).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertPriceHistorySchema = createInsertSchema(priceHistory).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertFareHoldSchema = createInsertSchema(fareHolds).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPriceMonitoringSchema = createInsertSchema(priceMonitoring).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -270,6 +345,14 @@ export type PointsTransaction = typeof pointsTransactions.$inferSelect;
 export type InsertPointsTransaction = z.infer<typeof insertPointsTransactionSchema>;
 export type TierHistory = typeof tierHistory.$inferSelect;
 export type InsertTierHistory = z.infer<typeof insertTierHistorySchema>;
+export type DynamicPricing = typeof dynamicPricing.$inferSelect;
+export type InsertDynamicPricing = z.infer<typeof insertDynamicPricingSchema>;
+export type PriceHistory = typeof priceHistory.$inferSelect;
+export type InsertPriceHistory = z.infer<typeof insertPriceHistorySchema>;
+export type FareHold = typeof fareHolds.$inferSelect;
+export type InsertFareHold = z.infer<typeof insertFareHoldSchema>;
+export type PriceMonitoring = typeof priceMonitoring.$inferSelect;
+export type InsertPriceMonitoring = z.infer<typeof insertPriceMonitoringSchema>;
 
 // Additional schemas for frontend
 export const loginSchema = z.object({

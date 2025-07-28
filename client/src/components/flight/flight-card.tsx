@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Plane, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
+import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 
 interface FlightCardProps {
   flight: any;
@@ -137,13 +138,14 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           </div>
 
           {/* Price and Actions */}
-          <div className="text-center lg:text-right space-y-3">
-            <div>
-              <div className="text-3xl font-bold text-airline-blue">
-                ${parseFloat(flight.price).toFixed(0)}
-              </div>
-              <div className="text-sm text-gray-600">per person</div>
-            </div>
+          <div className="text-center lg:text-right space-y-3 min-w-[280px]">
+            <DynamicPricingDisplay
+              flightId={flight.id}
+              currentPrice={parseFloat(flight.price)}
+              basePrice={parseFloat(flight.price)}
+              showFareHold={true}
+              className="text-sm"
+            />
 
             <div className="space-y-2">
               <Button

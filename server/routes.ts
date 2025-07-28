@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { dynamicPricingService } from "./dynamic-pricing";
 import { insertUserSchema, loginSchema, flightSearchSchema, insertOrderSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -1338,6 +1339,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalDiscount,
         message: `Applied ${selectedBundles.length} loyalty bundles for ${user.loyaltyTier} tier`
       });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Dynamic Pricing Routes
+  app.get("/api/pricing/flight/:flightId", async (req, res) => {
+    try {
+      const flightId = parseInt(req.params.flightId);
+      const pricing = await dynamicPricingService.getCurrentPrice('flight', flightId);
+      
+      if (!pricing) {
+        return res.status(404).json({ message: "Flight pricing not found" });
+      }
+      
+      res.json(pricing);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/pricing/flights", async (req, res) => {
+    try {
+      const allPrices = await dynamicPricingService.getAllFlightPrices();
+      res.json(allPrices);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Fare Hold Routes
+  app.post("/api/fare-hold", authenticateToken, async (req: any, res) => {
+    try {
+      const { flightId, holdDuration } = req.body;
+      const userId = req.user.userId;
+      
+      // Check if user already has an active hold for this flight
+      const existingHold = await dynamicPricingService.getUserFareHold(userId, flightId);
+      if (existingHold.length > 0) {
+        return res.status(400).json({ 
+          message: "You already have an active fare hold for this flight" 
+        });
+      }
+      
+      // Calculate hold price (different rates for different durations)
+      const holdPrice = holdDuration === 24 ? 49.99 : holdDuration === 48 ? 79.99 : 99.99;
+      
+      // Check wallet balance
+      const user = await storage.getUser(userId);
+      if (!user || parseFloat(user.walletBalance) < holdPrice) {
+        return res.status(400).json({ 
+          message: "Insufficient wallet balance",
+          required: holdPrice.toFixed(2),
+          available: user?.walletBalance || "0.00"
+        });
+      }
+      
+      // Deduct from wallet
+      await storage.updateWalletBalance(userId, -holdPrice);
+      await storage.addWalletTransaction(
+        userId, 
+        holdPrice, 
+        'debit', 
+        `Fare hold for ${holdDuration} hours`
+      );
+      
+      const fareHold = await dynamicPricingService.createFareHold(
+        userId, 
+        flightId, 
+        holdDuration, 
+        holdPrice
+      );
+      
+      res.json(fareHold);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/fare-hold/:flightId", authenticateToken, async (req: any, res) => {
+    try {
+      const flightId = parseInt(req.params.flightId);
+      const userId = req.user.userId;
+      
+      const fareHold = await dynamicPricingService.getUserFareHold(userId, flightId);
+      res.json(fareHold.length > 0 ? fareHold[0] : null);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
