@@ -197,37 +197,54 @@ export const useCartStore = create<CartState>()(
       setCurrentUser: async (userId: number | null) => {
         const currentUserId = get().currentUserId;
         
-        // If user changed, clear cart to prevent showing wrong user's items
+        // If user changed, handle cart transition
         if (currentUserId !== userId) {
-          // First, save current cart items to database if user was authenticated
-          if (currentUserId && isAuthenticated()) {
-            try {
-              const currentItems = get().items;
-              // Save each item to database before clearing
-              for (const item of currentItems) {
-                if (!item.databaseId) {
-                  await apiRequest('POST', '/api/cart', {
-                    itemId: item.id,
-                    type: item.type,
-                    name: item.name,
-                    description: item.description,
-                    price: item.price.toString(),
-                    quantity: item.quantity,
-                    flightId: item.flightId || null,
-                    serviceId: item.serviceId || null,
-                    seatId: item.seatId || null,
-                    passengerId: item.passengerId || null,
-                    details: item.details || {},
-                  });
-                }
-              }
-            } catch (error) {
-              console.error('Failed to save cart before user switch:', error);
-            }
+          console.log(`Cart: User changing from ${currentUserId} to ${userId}`);
+          
+          // Case 1: User logging out (userId becomes null)
+          if (userId === null) {
+            console.log('Cart: User logging out, clearing cart');
+            set({ currentUserId: userId, items: [] });
+            return;
           }
           
-          // Clear cart and set new user
-          set({ currentUserId: userId, items: [] });
+          // Case 2: User logging in or switching users
+          if (currentUserId === null) {
+            // User logging in - set new user but don't clear cart yet
+            // syncCart() will handle loading their cart from database
+            console.log('Cart: User logging in, preparing to sync cart');
+            set({ currentUserId: userId });
+          } else {
+            // User switching - save current user's cart first
+            if (isAuthenticated()) {
+              try {
+                const currentItems = get().items;
+                for (const item of currentItems) {
+                  if (!item.databaseId) {
+                    await apiRequest('POST', '/api/cart/add', {
+                      itemId: item.id,
+                      type: item.type,
+                      name: item.name,
+                      description: item.description,
+                      price: item.price.toString(),
+                      quantity: item.quantity,
+                      flightId: item.flightId || null,
+                      serviceId: item.serviceId || null,
+                      seatId: item.seatId || null,
+                      passengerId: item.passengerId || null,
+                      details: item.details || {},
+                    });
+                  }
+                }
+              } catch (error) {
+                console.error('Failed to save cart before user switch:', error);
+              }
+            }
+            
+            // Clear cart and set new user for user switch
+            console.log('Cart: User switching, clearing cart');
+            set({ currentUserId: userId, items: [] });
+          }
         }
       },
       
@@ -243,6 +260,11 @@ export const useCartStore = create<CartState>()(
           console.log('Cart sync: Loading cart from database...');
           set({ isLoading: true });
           const response = await apiRequest('GET', '/api/cart');
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch cart: ${response.status}`);
+          }
+          
           const dbCartItems = await response.json();
           
           console.log('Cart sync: Received cart items from database:', dbCartItems);
@@ -264,13 +286,14 @@ export const useCartStore = create<CartState>()(
           }));
           
           console.log('Cart sync: Converted items:', convertedItems);
+          console.log(`Cart sync: Loaded ${convertedItems.length} items for user`);
           
-          // Always replace items completely to ensure user-specific cart
+          // Replace items with user's cart from database
           set({ items: convertedItems });
         } catch (error) {
           console.error('Failed to sync cart:', error);
-          // Clear cart on error to avoid showing wrong user's items
-          set({ items: [] });
+          // Don't clear cart on error - keep local items if sync fails
+          console.log('Cart sync: Keeping local cart items due to sync error');
         } finally {
           set({ isLoading: false });
         }
