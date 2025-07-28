@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import FareHoldButton from "@/components/fare-hold-button";
+import FlightSelectionModal from "./flight-selection-modal";
 
 interface FlightCardProps {
   flight: any;
@@ -15,24 +17,14 @@ interface FlightCardProps {
 export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
   const { addFlight } = useCart();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleSelectFlight = () => {
     if (onSelect) {
       onSelect(flight);
     } else {
-      // Store selected flight and navigate directly to services
-      sessionStorage.setItem("selectedFlight", JSON.stringify(flight));
-
-      // Get passenger count for proper pricing
-      const storedSearch = sessionStorage.getItem("flightSearch");
-      const passengerCount = storedSearch
-        ? JSON.parse(storedSearch).passengers
-        : 1;
-
-      // Add flight to cart for proper pricing calculation
-      addFlight(flight, [], passengerCount);
-
-      setLocation("/services");
+      // Show the selection modal instead of directly navigating
+      setIsModalOpen(true);
     }
   };
 
@@ -181,6 +173,13 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           </Button>
         </div>
       </CardContent>
+      
+      {/* Flight Selection Modal */}
+      <FlightSelectionModal
+        flight={flight}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </Card>
   );
 }
