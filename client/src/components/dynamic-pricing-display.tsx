@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { TrendingUp, TrendingDown, Clock, Shield, Zap } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { TrendingUp, TrendingDown, Clock, Shield, Zap } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface DynamicPricingDisplayProps {
   flightId: number;
@@ -21,51 +21,57 @@ export default function DynamicPricingDisplay({
   currentPrice,
   basePrice,
   showFareHold = true,
-  className = ""
+  className = "",
 }: DynamicPricingDisplayProps) {
   const [lastPrice, setLastPrice] = useState<number | null>(null);
-  const [priceChangeDirection, setPriceChangeDirection] = useState<'up' | 'down' | 'same'>('same');
+  const [priceChangeDirection, setPriceChangeDirection] = useState<
+    "up" | "down" | "same"
+  >("same");
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // Fetch current pricing data
-  const { data: pricingData, isLoading, error: pricingError } = useQuery({
-    queryKey: ['/api/pricing/flight', flightId],
+  const {
+    data: pricingData,
+    isLoading,
+    error: pricingError,
+  } = useQuery({
+    queryKey: ["/api/pricing/flight", flightId],
     refetchInterval: 30000, // Refresh every 30 seconds
     enabled: !!flightId,
-    retry: false
+    retry: false,
   });
 
   // Fetch price history for trend analysis
   const { data: priceHistory } = useQuery({
-    queryKey: ['/api/pricing/history/flight', flightId, 'hours=24'],
+    queryKey: ["/api/pricing/history/flight", flightId, "hours=24"],
     refetchInterval: 60000, // Refresh every minute
     enabled: !!flightId && !pricingError,
-    retry: false
+    retry: false,
   });
 
   // Check for existing fare hold
   const { data: fareHold } = useQuery({
-    queryKey: ['/api/fare-hold', flightId],
+    queryKey: ["/api/fare-hold", flightId],
     enabled: showFareHold && !!flightId && !pricingError,
-    retry: false
+    retry: false,
   });
 
   // Track price changes
   useEffect(() => {
     if (pricingData?.currentPrice) {
       const newPrice = parseFloat(pricingData.currentPrice);
-      
+
       if (lastPrice !== null) {
         if (newPrice > lastPrice) {
-          setPriceChangeDirection('up');
+          setPriceChangeDirection("up");
         } else if (newPrice < lastPrice) {
-          setPriceChangeDirection('down');
+          setPriceChangeDirection("down");
         } else {
-          setPriceChangeDirection('same');
+          setPriceChangeDirection("same");
         }
       }
-      
+
       setLastPrice(newPrice);
     }
   }, [pricingData?.currentPrice, lastPrice]);
@@ -93,7 +99,9 @@ export default function DynamicPricingDisplay({
   // If there's an error, show fallback display with static price
   if (pricingError) {
     return (
-      <Card className={`${className} border-2 border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50`}>
+      <Card
+        className={`${className} border-2 border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50`}
+      >
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -105,11 +113,9 @@ export default function DynamicPricingDisplay({
         <CardContent className="space-y-4">
           <div className="text-center">
             <div className="text-3xl font-bold text-gray-900">
-              ${currentPrice?.toFixed(2) || '0.00'}
+              ${currentPrice?.toFixed(2) || "0.00"}
             </div>
-            <div className="text-sm text-gray-600">
-              per person
-            </div>
+            <div className="text-sm text-gray-600">per person</div>
           </div>
           <div className="text-xs text-gray-500 text-center">
             Static pricing (dynamic pricing temporarily unavailable)
@@ -119,13 +125,13 @@ export default function DynamicPricingDisplay({
     );
   }
 
-  const pricing = pricingData || { 
-    currentPrice: currentPrice?.toString() || '0', 
-    basePrice: basePrice?.toString() || '0',
-    demandMultiplier: '1.000',
-    timeMultiplier: '1.000',
+  const pricing = pricingData || {
+    currentPrice: currentPrice?.toString() || "0",
+    basePrice: basePrice?.toString() || "0",
+    demandMultiplier: "1.000",
+    timeMultiplier: "1.000",
     totalBookings: 0,
-    inventoryLevel: 100
+    inventoryLevel: 100,
   };
 
   const currentPriceNum = parseFloat(pricing.currentPrice);
@@ -135,9 +141,9 @@ export default function DynamicPricingDisplay({
 
   const getTrendIcon = () => {
     switch (priceChangeDirection) {
-      case 'up':
+      case "up":
         return <TrendingUp className="w-4 h-4 text-red-500" />;
-      case 'down':
+      case "down":
         return <TrendingDown className="w-4 h-4 text-green-500" />;
       default:
         return <Clock className="w-4 h-4 text-gray-500" />;
@@ -145,24 +151,32 @@ export default function DynamicPricingDisplay({
   };
 
   const getPriceChangeColor = () => {
-    if (priceChange > 5) return 'text-red-600';
-    if (priceChange < -5) return 'text-green-600';
-    return 'text-gray-600';
+    if (priceChange > 5) return "text-red-600";
+    if (priceChange < -5) return "text-green-600";
+    return "text-gray-600";
   };
 
-
-
   return (
-    <Card className={`${className} border-2 border-dashed border-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50`}>
+    <Card
+      className={`${className} border-2 border-dashed border-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50`}
+    >
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Zap className="w-5 h-5 text-yellow-500" />
-            Dynamic Pricing
-            {getTrendIcon()}
+            Price
           </div>
-          <Badge variant={priceChange > 0 ? "destructive" : priceChange < 0 ? "secondary" : "outline"}>
-            {priceChange > 0 ? '+' : ''}{priceChange.toFixed(1)}%
+          <Badge
+            variant={
+              priceChange > 0
+                ? "destructive"
+                : priceChange < 0
+                  ? "secondary"
+                  : "outline"
+            }
+          >
+            {priceChange > 0 ? "+" : ""}
+            {priceChange.toFixed(1)}%
           </Badge>
         </CardTitle>
       </CardHeader>
@@ -176,8 +190,10 @@ export default function DynamicPricingDisplay({
             Base: ${basePriceNum.toFixed(2)}
           </div>
           <div className={`text-sm font-medium ${getPriceChangeColor()}`}>
-            {priceChange > 0 ? '+' : ''}${(currentPriceNum - basePriceNum).toFixed(2)} 
-            ({priceChange > 0 ? '+' : ''}{priceChange.toFixed(1)}%)
+            {priceChange > 0 ? "+" : ""}$
+            {(currentPriceNum - basePriceNum).toFixed(2)}(
+            {priceChange > 0 ? "+" : ""}
+            {priceChange.toFixed(1)}%)
           </div>
         </div>
 
