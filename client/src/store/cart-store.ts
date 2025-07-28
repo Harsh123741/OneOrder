@@ -37,22 +37,9 @@ export const useCartStore = create<CartState>()(
         return { items: [...state.items, item] };
       }),
       
-      removeItem: (id) => set((state) => {
-        // If removing a flight, also remove associated fare hold services
-        const itemToRemove = state.items.find(item => item.id === id);
-        if (itemToRemove?.type === 'flight') {
-          const flightId = itemToRemove.flightId;
-          return {
-            items: state.items.filter(item => 
-              item.id !== id && 
-              !(item.type === 'service' && item.name?.includes('Fare Hold') && item.flightId === flightId)
-            ),
-          };
-        }
-        return {
-          items: state.items.filter(item => item.id !== id),
-        };
-      }),
+      removeItem: (id) => set((state) => ({
+        items: state.items.filter(item => item.id !== id),
+      })),
       
       updateQuantity: (id, quantity) => set((state) => ({
         items: state.items.map(item =>

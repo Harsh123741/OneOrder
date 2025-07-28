@@ -9,23 +9,15 @@ interface FareHoldButtonProps {
   flightId: number;
   currentPrice: number;
   className?: string;
-  isFlightInCart?: boolean;
 }
 
-export default function FareHoldButton({ flightId, currentPrice, className = "", isFlightInCart = false }: FareHoldButtonProps) {
-  const { addService, items } = useCart();
+export default function FareHoldButton({ flightId, currentPrice, className = "" }: FareHoldButtonProps) {
+  const { addService } = useCart();
 
-  // Check if fare hold service is in cart for this flight
-  const fareHoldInCart = items.find(item => 
-    item.type === 'service' && 
-    item.name?.includes('Fare Hold') && 
-    item.flightId === flightId
-  );
-
-  // Only check database fare hold if flight is in cart
+  // Check for existing fare hold
   const { data: fareHold } = useQuery({
     queryKey: ['/api/fare-hold', flightId],
-    enabled: !!flightId && isFlightInCart,
+    enabled: !!flightId,
     retry: false
   });
 
@@ -49,11 +41,7 @@ export default function FareHoldButton({ flightId, currentPrice, className = "",
     addService(fareHoldService, 0); // Add to first passenger (flight-level service)
   };
 
-  // Show locked state if fare hold is in cart or database (and flight is in cart)
-  if (fareHoldInCart || (fareHold && isFlightInCart)) {
-    const lockedPrice = fareHoldInCart?.lockedPrice || fareHold?.lockedFarePrice;
-    const expiryDate = fareHold?.expiresAt;
-    
+  if (fareHold) {
     return (
       <Card className={`${className} border-green-200 bg-green-50`}>
         <CardContent className="p-3">
@@ -62,18 +50,12 @@ export default function FareHoldButton({ flightId, currentPrice, className = "",
             <span className="font-medium text-sm">Price Locked!</span>
           </div>
           <div className="text-xs text-green-700 mt-1">
-            {lockedPrice && `Locked at $${parseFloat(lockedPrice).toFixed(2)}`}
-            {expiryDate && ` until ${new Date(expiryDate).toLocaleDateString()}`}
-            {fareHoldInCart && !expiryDate && ` (in cart)`}
+            Locked at ${parseFloat(fareHold.lockedFarePrice).toFixed(2)} until{' '}
+            {new Date(fareHold.expiresAt).toLocaleDateString()}
           </div>
         </CardContent>
       </Card>
     );
-  }
-
-  // Don't show fare hold options if flight is not in cart
-  if (!isFlightInCart) {
-    return null;
   }
 
   return (
