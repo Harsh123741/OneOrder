@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Plane, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
-import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
+import SimpleDynamicPricing from "@/components/simple-dynamic-pricing";
 
 interface FlightCardProps {
   flight: any;
