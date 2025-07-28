@@ -161,6 +161,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Record booking with dynamic pricing service and update flight inventory
+      if (order.flightId) {
+        try {
+          // Calculate passenger count for flight booking
+          const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
+          
+          // Record flight booking (affects pricing and inventory)
+          await dynamicPricingService.recordBooking('flight', order.flightId, passengerCount);
+          
+          // Record service bookings if any
+          if (order.selectedServices && Array.isArray(order.selectedServices)) {
+            for (const service of order.selectedServices) {
+              if (service.id) {
+                await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
+              }
+            }
+          }
+          
+          // Record passenger-specific service bookings
+          if (Array.isArray(order.passengerInfo)) {
+            for (const passenger of order.passengerInfo) {
+              if (passenger.services && Array.isArray(passenger.services)) {
+                for (const service of passenger.services) {
+                  if (service.id) {
+                    await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log(`Dynamic pricing updated for flight ${order.flightId} with ${passengerCount} passengers`);
+        } catch (pricingError) {
+          console.error("Error updating dynamic pricing:", pricingError);
+          // Don't fail the order if pricing update fails
+        }
+      }
+
       // Update order status to confirmed
       const updatedOrder = await storage.updateOrder(order.id, {
         status: "confirmed",
@@ -305,7 +343,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log("Search criteria:", searchCriteria);
       const flights = await storage.searchFlights(searchCriteria);
-      res.json(flights);
+      
+      // Integrate dynamic pricing for each flight
+      const flightsWithDynamicPricing = await Promise.all(
+        flights.map(async (flight) => {
+          try {
+            // Initialize pricing if it doesn't exist
+            await dynamicPricingService.initializeFlightPricing(flight.id, parseFloat(flight.price));
+            
+            // Get current dynamic price
+            const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
+            
+            if (currentPricing) {
+              return {
+                ...flight,
+                originalPrice: flight.price,
+                price: currentPricing.currentPrice,
+                dynamicPricing: {
+                  basePrice: currentPricing.basePrice,
+                  currentPrice: currentPricing.currentPrice,
+                  demandMultiplier: currentPricing.demandMultiplier,
+                  timeMultiplier: currentPricing.timeMultiplier,
+                  totalBookings: currentPricing.totalBookings,
+                  inventoryLevel: currentPricing.inventoryLevel,
+                  lastUpdated: currentPricing.lastUpdated
+                }
+              };
+            }
+            
+            return flight;
+          } catch (pricingError) {
+            console.error(`Dynamic pricing error for flight ${flight.id}:`, pricingError);
+            return flight; // Return original flight if pricing fails
+          }
+        })
+      );
+      
+      res.json(flightsWithDynamicPricing);
     } catch (error: any) {
       console.error("Flight search error:", error);
       res.status(400).json({ message: "Flight search failed", error: error.message });
@@ -319,6 +393,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!flight) {
         return res.status(404).json({ message: "Flight not found" });
+      }
+      
+      try {
+        // Initialize pricing if it doesn't exist
+        await dynamicPricingService.initializeFlightPricing(flight.id, parseFloat(flight.price));
+        
+        // Get current dynamic price
+        const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
+        
+        if (currentPricing) {
+          const flightWithDynamicPricing = {
+            ...flight,
+            originalPrice: flight.price,
+            price: currentPricing.currentPrice,
+            dynamicPricing: {
+              basePrice: currentPricing.basePrice,
+              currentPrice: currentPricing.currentPrice,
+              demandMultiplier: currentPricing.demandMultiplier,
+              timeMultiplier: currentPricing.timeMultiplier,
+              totalBookings: currentPricing.totalBookings,
+              inventoryLevel: currentPricing.inventoryLevel,
+              lastUpdated: currentPricing.lastUpdated
+            }
+          };
+          return res.json(flightWithDynamicPricing);
+        }
+      } catch (pricingError) {
+        console.error(`Dynamic pricing error for flight ${flight.id}:`, pricingError);
       }
       
       res.json(flight);

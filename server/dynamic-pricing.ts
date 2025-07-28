@@ -120,8 +120,8 @@ export class DynamicPricingService {
     if (!pricing.length) return null;
 
     const currentPricing = pricing[0];
-    let demandMultiplier = parseFloat(currentPricing.demandMultiplier);
-    let timeMultiplier = parseFloat(currentPricing.timeMultiplier);
+    let demandMultiplier = parseFloat(currentPricing.demandMultiplier || "1.000");
+    let timeMultiplier = parseFloat(currentPricing.timeMultiplier || "1.000");
 
     // Update time multiplier for flights
     if (entityType === 'flight') {
@@ -135,23 +135,23 @@ export class DynamicPricingService {
     if (entityType === 'flight') {
       const flight = await db.select().from(flights).where(eq(flights.id, entityId)).limit(1);
       if (flight.length) {
-        const maxInventory = flight[0].totalSeats;
+        const maxInventory = flight[0].totalSeats || 180;
         demandMultiplier = this.calculateDemandMultiplier(
-          currentPricing.totalBookings,
-          currentPricing.recentBookings,
-          currentPricing.inventoryLevel,
+          currentPricing.totalBookings || 0,
+          currentPricing.recentBookings || 0,
+          currentPricing.inventoryLevel || 0,
           maxInventory
         );
       }
     } else {
       // For seats and services, use simpler demand calculation
-      const scarcityFactor = currentPricing.inventoryLevel <= 5 ? 1.3 : 1.0;
-      const demandFactor = currentPricing.recentBookings > 3 ? 1.2 : 1.0;
+      const scarcityFactor = (currentPricing.inventoryLevel || 0) <= 5 ? 1.3 : 1.0;
+      const demandFactor = (currentPricing.recentBookings || 0) > 3 ? 1.2 : 1.0;
       demandMultiplier = Math.min(scarcityFactor * demandFactor, 2.0);
     }
 
     // Calculate new price
-    const basePrice = parseFloat(currentPricing.basePrice);
+    const basePrice = parseFloat(currentPricing.basePrice || "0");
     const newPrice = basePrice * demandMultiplier * timeMultiplier;
 
     // Update pricing record
@@ -167,11 +167,11 @@ export class DynamicPricingService {
 
     // Record price history
     await db.insert(priceHistory).values({
-      pricingId: currentPricing.id,
+      dynamicPricingId: currentPricing.id,
       price: newPrice.toFixed(2),
       demandMultiplier: demandMultiplier.toFixed(3),
       timeMultiplier: timeMultiplier.toFixed(3),
-      totalBookings: currentPricing.totalBookings
+      totalBookings: currentPricing.totalBookings || 0
     });
 
     return updatedPricing;
@@ -192,9 +192,9 @@ export class DynamicPricingService {
     // Update booking metrics
     await db.update(dynamicPricing)
       .set({
-        totalBookings: currentPricing.totalBookings + quantity,
-        recentBookings: currentPricing.recentBookings + quantity,
-        inventoryLevel: Math.max(0, currentPricing.inventoryLevel - quantity)
+        totalBookings: (currentPricing.totalBookings || 0) + quantity,
+        recentBookings: (currentPricing.recentBookings || 0) + quantity,
+        inventoryLevel: Math.max(0, (currentPricing.inventoryLevel || 0) - quantity)
       })
       .where(eq(dynamicPricing.id, currentPricing.id));
 
