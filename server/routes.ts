@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { dynamicPricingService } from "./dynamic-pricing";
-import { insertUserSchema, loginSchema, flightSearchSchema, insertOrderSchema } from "@shared/schema";
+import { insertUserSchema, loginSchema, flightSearchSchema, insertOrderSchema, insertCartItemSchema } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -1484,6 +1484,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalDiscount,
         message: `Applied ${selectedBundles.length} loyalty bundles for ${user.loyaltyTier} tier`
       });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Cart Management Routes
+  app.get("/api/cart", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const cartItems = await storage.getUserCartItems(userId);
+      res.json(cartItems);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.post("/api/cart/add", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const cartItemData = insertCartItemSchema.parse({
+        ...req.body,
+        userId
+      });
+      
+      const cartItem = await storage.addCartItem(cartItemData);
+      res.json(cartItem);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid cart item data" });
+    }
+  });
+
+  app.put("/api/cart/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const itemId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const updatedItem = await storage.updateCartItem(itemId, updates);
+      if (!updatedItem) {
+        return res.status(404).json({ message: "Cart item not found" });
+      }
+      
+      res.json(updatedItem);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/cart/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const itemId = parseInt(req.params.id);
+      const success = await storage.removeCartItem(itemId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Cart item not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/cart/clear", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      await storage.clearUserCart(userId);
+      res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }

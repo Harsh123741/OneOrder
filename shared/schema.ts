@@ -126,6 +126,24 @@ export const passengers = pgTable("passengers", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const cartItems = pgTable("cart_items", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  itemId: text("item_id").notNull(), // Unique identifier for the cart item (e.g., "flight-123", "service-456")
+  type: text("type").notNull(), // flight, service, seat
+  name: text("name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  quantity: integer("quantity").default(1),
+  flightId: integer("flight_id").references(() => flights.id),
+  serviceId: integer("service_id").references(() => services.id),
+  seatId: integer("seat_id").references(() => seats.id),
+  passengerId: integer("passenger_id").references(() => passengers.id),
+  details: json("details"), // Additional item details (dynamic pricing, fare hold info, etc.)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const bookingHistory = pgTable("booking_history", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
@@ -376,6 +394,16 @@ export const flightSearchSchema = z.object({
   class: z.enum(["economy", "premium_economy", "business", "first"]),
   tripType: z.enum(["round_trip", "one_way", "multi_city"]),
 });
+
+// Cart Items Schema
+export const insertCartItemSchema = createInsertSchema(cartItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type CartItem = typeof cartItems.$inferSelect;
+export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
 
 export type LoginData = z.infer<typeof loginSchema>;
 export type RegisterData = z.infer<typeof registerSchema>;

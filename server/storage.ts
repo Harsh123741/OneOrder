@@ -1,10 +1,11 @@
 import { 
-  users, flights, seats, services, orders, bookingHistory, passengers,
+  users, flights, seats, services, orders, bookingHistory, passengers, cartItems,
   loyaltyTiers, loyaltyBundles, pointsTransactions, tierHistory, dynamicPricing, fareHolds,
   type User, type InsertUser, type Flight, type InsertFlight,
   type Seat, type InsertSeat, type Service, type InsertService,
   type Order, type InsertOrder, type BookingHistory, type InsertBookingHistory,
-  type Passenger, type InsertPassenger, type LoyaltyTier, type InsertLoyaltyTier,
+  type Passenger, type InsertPassenger, type CartItem, type InsertCartItem,
+  type LoyaltyTier, type InsertLoyaltyTier,
   type LoyaltyBundle, type InsertLoyaltyBundle, type PointsTransaction, type InsertPointsTransaction,
   type TierHistory, type InsertTierHistory, type DynamicPricing, type FareHold
 } from "@shared/schema";
@@ -67,6 +68,13 @@ export interface IStorage {
   createPassenger(passenger: InsertPassenger): Promise<Passenger>;
   updatePassenger(id: number, updates: Partial<Passenger>): Promise<Passenger | undefined>;
   deletePassenger(id: number): Promise<boolean>;
+  
+  // Cart methods
+  getUserCartItems(userId: number): Promise<CartItem[]>;
+  addCartItem(cartItem: InsertCartItem): Promise<CartItem>;
+  updateCartItem(id: number, updates: Partial<CartItem>): Promise<CartItem | undefined>;
+  removeCartItem(id: number): Promise<boolean>;
+  clearUserCart(userId: number): Promise<void>;
   
   // Loyalty methods
   getLoyaltyTiers(): Promise<LoyaltyTier[]>;
@@ -1040,6 +1048,69 @@ export class DatabaseStorage implements IStorage {
     }, 0);
     
     return { bundles, totalDiscount };
+  }
+
+  // Cart management methods
+  async getUserCartItems(userId: number): Promise<CartItem[]> {
+    return await db.select().from(cartItems)
+      .where(eq(cartItems.userId, userId))
+      .orderBy(cartItems.createdAt);
+  }
+
+  async addCartItem(insertCartItem: InsertCartItem): Promise<CartItem> {
+    // Check if item already exists (by itemId for same user)
+    const existingItem = await db.select().from(cartItems)
+      .where(and(
+        eq(cartItems.userId, insertCartItem.userId),
+        eq(cartItems.itemId, insertCartItem.itemId)
+      ))
+      .limit(1);
+
+    if (existingItem.length > 0) {
+      // Update quantity if item exists
+      const [updatedItem] = await db
+        .update(cartItems)
+        .set({
+          quantity: existingItem[0].quantity + (insertCartItem.quantity || 1),
+          price: insertCartItem.price, // Update price in case it changed
+          updatedAt: new Date(),
+        })
+        .where(eq(cartItems.id, existingItem[0].id))
+        .returning();
+      return updatedItem;
+    } else {
+      // Insert new item
+      const [newItem] = await db
+        .insert(cartItems)
+        .values({
+          ...insertCartItem,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      return newItem;
+    }
+  }
+
+  async updateCartItem(id: number, updates: Partial<CartItem>): Promise<CartItem | undefined> {
+    const [updatedItem] = await db
+      .update(cartItems)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(cartItems.id, id))
+      .returning();
+    return updatedItem || undefined;
+  }
+
+  async removeCartItem(id: number): Promise<boolean> {
+    const result = await db.delete(cartItems).where(eq(cartItems.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async clearUserCart(userId: number): Promise<void> {
+    await db.delete(cartItems).where(eq(cartItems.userId, userId));
   }
 }
 

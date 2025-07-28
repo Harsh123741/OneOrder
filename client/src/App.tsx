@@ -9,6 +9,7 @@ import { WalletProvider } from "@/contexts/wallet-context";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import CartSidebar from "@/components/cart/cart-sidebar";
+import { CartSync } from "@/components/cart/cart-sync";
 import Home from "@/pages/home";
 import Flights from "@/pages/flights";
 import Booking from "@/pages/booking";
@@ -60,6 +61,7 @@ function App() {
               </main>
               <Footer />
               <CartSidebar />
+              <CartSync />
             </div>
             <Toaster />
           </TooltipProvider>

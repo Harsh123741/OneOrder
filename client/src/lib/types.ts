@@ -1,5 +1,6 @@
 export interface CartItem {
   id: string;
+  databaseId?: number; // ID from the database cart_items table
   type: 'flight' | 'seat' | 'service' | 'seat-addon';
   name: string;
   description?: string;
