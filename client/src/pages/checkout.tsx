@@ -152,7 +152,8 @@ export default function Checkout() {
       
       // Store order details for payment page
       localStorage.setItem('pendingOrder', JSON.stringify(order));
-      clearCart();
+      // Clear cart with checkout flow flag to prevent redirect to home page
+      clearCart(true);
       setLocation(`/payment?orderNumber=${order.orderNumber}`);
     },
     onError: (error: any) => {

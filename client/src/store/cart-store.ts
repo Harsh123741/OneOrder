@@ -8,10 +8,11 @@ interface CartState {
   isOpen: boolean;
   isLoading: boolean;
   currentUserId: number | null;
+  isCheckoutFlow: boolean; // Flag to distinguish checkout flow from user removal
   addItem: (item: CartItem) => Promise<void>;
-  removeItem: (id: string) => Promise<void>;
+  removeItem: (id: string, isUserInitiated?: boolean) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
-  clearCart: () => Promise<void>;
+  clearCart: (isCheckoutFlow?: boolean) => Promise<void>;
   syncCart: () => Promise<void>;
   loadCartFromStorage: () => Promise<void>;
   setCurrentUser: (userId: number | null) => void;
@@ -21,6 +22,7 @@ interface CartState {
   getTaxes: () => number;
   getTotal: () => number;
   getItemCount: () => number;
+  setCheckoutFlow: (isCheckoutFlow: boolean) => void;
   // Navigation callback for when flights are removed
   onFlightRemoved?: () => void;
   setOnFlightRemoved: (callback: (() => void) | undefined) => void;
@@ -59,6 +61,7 @@ export const useCartStore = create<CartState>()(
       isOpen: false,
       isLoading: false,
       currentUserId: null,
+      isCheckoutFlow: false,
       
       addItem: async (item) => {
         try {
@@ -162,14 +165,17 @@ export const useCartStore = create<CartState>()(
         }
       },
       
-      removeItem: async (id) => {
+      removeItem: async (id, isUserInitiated = true) => {
         try {
           set({ isLoading: true });
           const currentUserId = get().currentUserId;
           
+          // Get the item before removal to check if it's a flight
+          const currentItems = get().items;
+          const removedItem = currentItems.find(item => item.id === id);
+          
           if (currentUserId && isAuthenticated(currentUserId)) {
             // Find the database ID for this cart item
-            const currentItems = get().items;
             const item = currentItems.find(i => i.id === id);
             
             if (item && item.databaseId) {
@@ -181,6 +187,11 @@ export const useCartStore = create<CartState>()(
           set((state) => ({
             items: state.items.filter(item => item.id !== id),
           }));
+          
+          // Check if a flight was removed and call the callback only for user-initiated removals
+          if (removedItem?.type === 'flight' && isUserInitiated && get().onFlightRemoved) {
+            get().onFlightRemoved!();
+          }
         } catch (error) {
           console.error('Failed to remove item from cart:', error);
           // Fallback to local removal only
@@ -225,7 +236,7 @@ export const useCartStore = create<CartState>()(
         }
       },
       
-      clearCart: async () => {
+      clearCart: async (isCheckoutFlow = false) => {
         try {
           set({ isLoading: true });
           
@@ -234,12 +245,12 @@ export const useCartStore = create<CartState>()(
             await apiRequest('DELETE', '/api/cart/clear');
           }
           
-          // Clear local state
-          set({ items: [] });
+          // Clear local state and set checkout flow flag
+          set({ items: [], isCheckoutFlow });
         } catch (error) {
           console.error('Failed to clear cart:', error);
           // Fallback to local clear only
-          set({ items: [] });
+          set({ items: [], isCheckoutFlow });
         } finally {
           set({ isLoading: false });
         }
@@ -345,6 +356,12 @@ export const useCartStore = create<CartState>()(
         const { items } = get();
         return items.reduce((count, item) => count + item.quantity, 0);
       },
+      
+      setCheckoutFlow: (isCheckoutFlow) => set({ isCheckoutFlow }),
+      
+      // Navigation callback for when flights are removed
+      onFlightRemoved: undefined,
+      setOnFlightRemoved: (callback) => set({ onFlightRemoved: callback }),
     }),
     {
       name: 'airline-cart-storage',

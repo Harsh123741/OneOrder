@@ -6,6 +6,7 @@ export function useCart() {
     items,
     isOpen,
     isLoading,
+    isCheckoutFlow,
     addItem,
     removeItem,
     updateQuantity,
@@ -19,6 +20,8 @@ export function useCart() {
     getTaxes,
     getTotal,
     getItemCount,
+    setCheckoutFlow,
+    setOnFlightRemoved,
   } = useCartStore();
 
   const addFlight = (flight: any, seats?: any[], passengerCount: number = 1) => {
@@ -106,6 +109,7 @@ export function useCart() {
     items,
     isOpen,
     isLoading,
+    isCheckoutFlow,
     addItem,
     removeItem,
     updateQuantity,
@@ -117,6 +121,8 @@ export function useCart() {
     setCartOpen,
     addFlight,
     addService,
+    setCheckoutFlow,
+    setOnFlightRemoved,
     subtotal: getSubtotal(),
     taxes: getTaxes(),
     total: getTotal(),

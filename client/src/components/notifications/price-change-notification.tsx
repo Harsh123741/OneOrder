@@ -14,6 +14,17 @@ export function PriceChangeNotification({ cartItems }: PriceChangeNotificationPr
   const [previousPrices, setPreviousPrices] = useState<PreviousPrices>({});
 
   useEffect(() => {
+    // Only process if we have previous prices to compare against
+    if (Object.keys(previousPrices).length === 0) {
+      // Initialize previous prices on first load
+      const initialPrices: PreviousPrices = {};
+      cartItems.forEach(item => {
+        initialPrices[item.id] = parseFloat(item.price);
+      });
+      setPreviousPrices(initialPrices);
+      return;
+    }
+
     // Check for price changes
     cartItems.forEach(item => {
       const currentPrice = parseFloat(item.price);
@@ -29,16 +40,15 @@ export function PriceChangeNotification({ cartItems }: PriceChangeNotificationPr
           variant: isIncrease ? "destructive" : "default",
           duration: 5000,
         });
+        
+        // Update only the changed item's price
+        setPreviousPrices(prev => ({
+          ...prev,
+          [item.id]: currentPrice
+        }));
       }
     });
-
-    // Update previous prices
-    const newPreviousPrices: PreviousPrices = {};
-    cartItems.forEach(item => {
-      newPreviousPrices[item.id] = parseFloat(item.price);
-    });
-    setPreviousPrices(newPreviousPrices);
-  }, [cartItems, previousPrices, toast]);
+  }, [cartItems, toast]); // Removed previousPrices from dependencies
 
   return null; // This component doesn't render anything visible
 }

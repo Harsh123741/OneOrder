@@ -11,7 +11,7 @@ export default function Booking() {
   const { flightId } = useParams();
   const [, setLocation] = useLocation();
   const [selectedFlight, setSelectedFlight] = useState<any>(null);
-  const { addFlight } = useCart();
+  const { addFlight, setOnFlightRemoved } = useCart();
 
   // Try to get flight from session storage first
   useEffect(() => {
@@ -19,7 +19,16 @@ export default function Booking() {
     if (storedFlight) {
       setSelectedFlight(JSON.parse(storedFlight));
     }
-  }, []);
+    
+    // Set up flight removal callback to redirect to home
+    setOnFlightRemoved(() => {
+      console.log('Flight removed, redirecting to home');
+      setLocation('/');
+    });
+    
+    // Cleanup callback on unmount
+    return () => setOnFlightRemoved(undefined);
+  }, [setOnFlightRemoved, setLocation]);
 
   // Fetch flight details if not in session storage
   const { data: flight } = useQuery({
