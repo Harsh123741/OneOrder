@@ -143,8 +143,8 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 currentPrice={parseFloat(flight.price)}
                 basePrice={parseFloat(flight.price)}
                 showFareHold={true}
-                isFlightInCart={items.some(item => item.type === 'flight' && item.id === flight.id)}
                 className="text-sm"
+                isFlightInCart={items.some(item => item.type === 'flight' && item.id === flight.id)}
               />
 
               <div className="space-y-2">
@@ -157,7 +157,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
 
                 <div className="text-xs text-gray-500 text-center">
                   {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
-                  Class
+                  Class • {flight.availableSeats || 0} seats left
                 </div>
               </div>
             </div>
