@@ -35,15 +35,22 @@ export default function FlightSelectionModal({
 
   const fareHoldMutation = useMutation({
     mutationFn: async (data: any) => {
+      const token = localStorage.getItem("auth_token");
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+      
       const response = await fetch('/api/fare-hold', {
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(data),
       });
       if (!response.ok) {
-        throw new Error('Failed to create fare hold');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create fare hold');
       }
       return response.json();
     },
@@ -84,8 +91,6 @@ export default function FlightSelectionModal({
       const fareHoldData = {
         flightId: flight.id,
         holdDuration: 24, // 24 hours hold
-        holdPrice: 25.00, // $25 fare hold fee
-        lockedFarePrice: parseFloat(flight.price),
       };
 
       await fareHoldMutation.mutateAsync(fareHoldData);
@@ -102,27 +107,34 @@ export default function FlightSelectionModal({
       // Add flight to cart
       addFlight(flight, [], passengerCount);
 
-      // Add fare hold service to cart
-      addItem({
-        id: `fare-hold-${flight.id}`,
-        name: "24-Hour Fare Hold",
-        description: `Lock in your fare for ${flight.flightNumber} until tomorrow`,
-        price: 25.00,
-        type: "service",
-        quantity: 1,
-      });
-
       toast({
         title: "Fare Hold Activated",
-        description: "Your fare is now locked for 24 hours. Continue to select services.",
+        description: "Your fare is now locked for 24 hours. $49.99 has been deducted from your wallet.",
       });
 
       onClose();
       setLocation("/services");
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Fare hold error:", error);
+      
+      let errorMessage = "Failed to activate fare hold. Please try again.";
+      
+      // Handle specific error messages from backend
+      if (error.message) {
+        if (error.message.includes("Insufficient wallet balance")) {
+          errorMessage = "Insufficient wallet balance. Please add funds to your wallet to purchase fare hold.";
+        } else if (error.message.includes("already have an active fare hold")) {
+          errorMessage = "You already have an active fare hold for this flight.";
+        } else if (error.message.includes("Authentication required")) {
+          errorMessage = "Please log in to purchase fare hold protection.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to activate fare hold. Please try again.",
+        title: "Fare Hold Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -225,7 +237,7 @@ export default function FlightSelectionModal({
                       <span className="text-sm font-medium">24-hour protection</span>
                     </div>
                     <Badge className="bg-blue-50 text-blue-700 border-blue-200">
-                      +$25.00
+                      +$49.99
                     </Badge>
                     <p className="text-xs text-gray-500">
                       Guaranteed fare regardless of price changes
