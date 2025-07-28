@@ -140,11 +140,11 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               className="text-sm"
             />
 
-            {/* <FareHoldButton
+            <FareHoldButton
               flightId={flight.id}
               currentPrice={parseFloat(flight.price)}
               className="text-sm"
-            /> */}
+            />
 
             <div className="space-y-2">
               <Button

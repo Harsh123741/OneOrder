@@ -344,12 +344,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Search criteria:", searchCriteria);
       const flights = await storage.searchFlights(searchCriteria);
       
+      // Get userId if authenticated
+      let userId = null;
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (token) {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          userId = decoded.userId;
+        }
+      } catch (e) {
+        // Not authenticated, continue with dynamic pricing
+      }
+      
       // Integrate dynamic pricing for each flight
       const flightsWithDynamicPricing = await Promise.all(
         flights.map(async (flight) => {
           try {
             // Initialize pricing if it doesn't exist
             await dynamicPricingService.initializeFlightPricing(flight.id, parseFloat(flight.price));
+            
+            // Check for active fare hold if user is authenticated
+            let fareHoldPrice = null;
+            if (userId) {
+              const fareHold = await dynamicPricingService.getUserFareHold(userId, flight.id);
+              if (fareHold.length > 0) {
+                fareHoldPrice = fareHold[0].lockedFarePrice;
+              }
+            }
             
             // Get current dynamic price
             const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
@@ -358,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return {
                 ...flight,
                 originalPrice: flight.price,
-                price: currentPricing.currentPrice,
+                price: fareHoldPrice || currentPricing.currentPrice, // Use locked price if available
                 dynamicPricing: {
                   basePrice: currentPricing.basePrice,
                   currentPrice: currentPricing.currentPrice,
@@ -366,7 +387,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   timeMultiplier: currentPricing.timeMultiplier,
                   totalBookings: currentPricing.totalBookings,
                   inventoryLevel: currentPricing.inventoryLevel,
-                  lastUpdated: currentPricing.lastUpdated
+                  lastUpdated: currentPricing.lastUpdated,
+                  isLocked: !!fareHoldPrice
                 }
               };
             }
@@ -1493,7 +1515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fare Hold Routes
   app.post("/api/fare-hold", authenticateToken, async (req: any, res) => {
     try {
-      const { flightId, holdDuration } = req.body;
+      const { flightId, holdDuration, holdPrice, lockedFarePrice } = req.body;
       const userId = req.user.userId;
       
       // Check if user already has an active hold for this flight
@@ -1504,37 +1526,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Calculate hold price (different rates for different durations)
-      const holdPrice = holdDuration === 24 ? 49.99 : holdDuration === 48 ? 79.99 : 99.99;
+      // Use provided holdPrice or calculate default
+      const finalHoldPrice = holdPrice || (holdDuration === 24 ? 49.99 : holdDuration === 48 ? 79.99 : 99.99);
       
       // Check wallet balance
       const user = await storage.getUser(userId);
-      if (!user || parseFloat(user.walletBalance) < holdPrice) {
+      if (!user || parseFloat(user.walletBalance) < finalHoldPrice) {
         return res.status(400).json({ 
           message: "Insufficient wallet balance",
-          required: holdPrice.toFixed(2),
+          required: finalHoldPrice.toFixed(2),
           available: user?.walletBalance || "0.00"
         });
       }
       
       // Deduct from wallet
-      await storage.updateWalletBalance(userId, -holdPrice);
+      await storage.updateWalletBalance(userId, -finalHoldPrice);
       await storage.addWalletTransaction(
         userId, 
-        holdPrice, 
+        finalHoldPrice, 
         'debit', 
-        `Fare hold for ${holdDuration} hours`
+        `Fare hold for ${holdDuration} hours - Flight ${flightId}`
       );
       
       const fareHold = await dynamicPricingService.createFareHold(
         userId, 
         flightId, 
         holdDuration, 
-        holdPrice
+        finalHoldPrice
       );
       
       res.json(fareHold);
     } catch (error) {
+      console.error("Fare hold creation error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });

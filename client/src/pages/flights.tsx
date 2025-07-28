@@ -210,9 +210,9 @@ export default function Flights() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col lg:flex-row gap-8">
+        <div className="flex flex-col xl:flex-row gap-8">
           {/* Enhanced Filters Sidebar */}
-          <div className="lg:w-1/4">
+          <div className="xl:w-1/4 lg:w-1/3">
             <Card className="sticky top-4 shadow-lg border-0">
               <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-2">
@@ -276,8 +276,8 @@ export default function Flights() {
           </div>
 
           {/* Enhanced Flight Results */}
-          <div className="lg:w-3/4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
+          <div className="xl:w-3/4 lg:w-2/3">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 space-y-4 lg:space-y-0">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">
                   Flight Options
