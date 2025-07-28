@@ -29,37 +29,36 @@ export default function DynamicPricingDisplay({
   const { toast } = useToast();
 
   // Fetch current pricing data
-  const { data: pricingData, isLoading } = useQuery({
-    queryKey: ['pricing', 'flight', flightId],
-    queryFn: () => apiRequest(`/api/pricing/flight/${flightId}`),
+  const { data: pricingData, isLoading, error: pricingError } = useQuery({
+    queryKey: ['/api/pricing/flight', flightId],
     refetchInterval: 30000, // Refresh every 30 seconds
-    enabled: !!flightId
+    enabled: !!flightId,
+    retry: false
   });
 
   // Fetch price history for trend analysis
   const { data: priceHistory } = useQuery({
-    queryKey: ['price-history', 'flight', flightId],
-    queryFn: () => apiRequest(`/api/pricing/history/flight/${flightId}?hours=24`),
+    queryKey: ['/api/pricing/history/flight', flightId, 'hours=24'],
     refetchInterval: 60000, // Refresh every minute
-    enabled: !!flightId
+    enabled: !!flightId && !pricingError,
+    retry: false
   });
 
   // Check for existing fare hold
   const { data: fareHold } = useQuery({
-    queryKey: ['fare-hold', flightId],
-    queryFn: () => apiRequest(`/api/fare-hold/${flightId}`),
-    enabled: showFareHold && !!flightId
+    queryKey: ['/api/fare-hold', flightId],
+    enabled: showFareHold && !!flightId && !pricingError,
+    retry: false
   });
 
   // Create fare hold mutation
   const createFareHoldMutation = useMutation({
-    mutationFn: (data: { flightId: number; holdDuration: number }) =>
-      apiRequest('/api/fare-hold', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      }),
+    mutationFn: async (data: { flightId: number; holdDuration: number }) => {
+      const response = await apiRequest('POST', '/api/fare-hold', data);
+      return response.json();
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fare-hold', flightId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/fare-hold', flightId] });
       toast({
         title: "Fare Hold Created",
         description: "Your flight price has been locked successfully!",
@@ -107,6 +106,35 @@ export default function DynamicPricingDisplay({
             <div className="h-8 bg-gray-200 rounded"></div>
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // If there's an error, show fallback display with static price
+  if (pricingError) {
+    return (
+      <Card className={`${className} border-2 border-dashed border-blue-300 bg-gradient-to-r from-blue-50 to-sky-50`}>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-blue-500" />
+              Flight Price
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-gray-900">
+              ${currentPrice?.toFixed(2) || '0.00'}
+            </div>
+            <div className="text-sm text-gray-600">
+              per person
+            </div>
+          </div>
+          <div className="text-xs text-gray-500 text-center">
+            Static pricing (dynamic pricing temporarily unavailable)
           </div>
         </CardContent>
       </Card>
