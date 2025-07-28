@@ -646,6 +646,21 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db.select().from(orders).where(eq(orders.id, id));
     if (!order) return undefined;
     
+    // Restore seat availability if seats were assigned
+    if (order.seatId) {
+      await this.updateSeatAvailability(order.seatId, true);
+    }
+    
+    // Restore multi-passenger seat availability
+    if (order.assignedSeats && Array.isArray(order.assignedSeats)) {
+      const assignedSeats = order.assignedSeats as any[];
+      for (const seatAssignment of assignedSeats) {
+        if (seatAssignment.seatId) {
+          await this.updateSeatAvailability(seatAssignment.seatId, true);
+        }
+      }
+    }
+    
     const [updatedOrder] = await db
       .update(orders)
       .set({ 

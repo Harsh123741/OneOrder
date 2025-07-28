@@ -111,7 +111,20 @@ export class DynamicPricingService {
 
   // Update pricing for a specific entity
   async updatePricing(entityType: string, entityId: number) {
-    const pricing = await db.select().from(dynamicPricing)
+    const pricing = await db.select({
+      id: dynamicPricing.id,
+      entityType: dynamicPricing.entityType,
+      entityId: dynamicPricing.entityId,
+      basePrice: dynamicPricing.basePrice,
+      currentPrice: dynamicPricing.currentPrice,
+      demandMultiplier: dynamicPricing.demandMultiplier,
+      timeMultiplier: dynamicPricing.timeMultiplier,
+      inventoryLevel: dynamicPricing.inventoryLevel,
+      totalBookings: dynamicPricing.totalBookings,
+      recentBookings: dynamicPricing.recentBookings,
+      lastUpdated: dynamicPricing.lastUpdated,
+      isActive: dynamicPricing.isActive
+    }).from(dynamicPricing)
       .where(and(
         eq(dynamicPricing.entityType, entityType),
         eq(dynamicPricing.entityId, entityId)
@@ -167,7 +180,7 @@ export class DynamicPricingService {
 
     // Record price history
     await db.insert(priceHistory).values({
-      dynamicPricingId: currentPricing.id,
+      pricingId: currentPricing.id,
       price: newPrice.toFixed(2),
       demandMultiplier: demandMultiplier.toFixed(3),
       timeMultiplier: timeMultiplier.toFixed(3),
@@ -179,7 +192,20 @@ export class DynamicPricingService {
 
   // Record a booking and update demand metrics
   async recordBooking(entityType: string, entityId: number, quantity: number = 1) {
-    const pricing = await db.select().from(dynamicPricing)
+    const pricing = await db.select({
+      id: dynamicPricing.id,
+      entityType: dynamicPricing.entityType,
+      entityId: dynamicPricing.entityId,
+      basePrice: dynamicPricing.basePrice,
+      currentPrice: dynamicPricing.currentPrice,
+      demandMultiplier: dynamicPricing.demandMultiplier,
+      timeMultiplier: dynamicPricing.timeMultiplier,
+      inventoryLevel: dynamicPricing.inventoryLevel,
+      totalBookings: dynamicPricing.totalBookings,
+      recentBookings: dynamicPricing.recentBookings,
+      lastUpdated: dynamicPricing.lastUpdated,
+      isActive: dynamicPricing.isActive
+    }).from(dynamicPricing)
       .where(and(
         eq(dynamicPricing.entityType, entityType),
         eq(dynamicPricing.entityId, entityId)
@@ -213,7 +239,20 @@ export class DynamicPricingService {
 
   // Get current price for an entity
   async getCurrentPrice(entityType: string, entityId: number) {
-    const pricing = await db.select().from(dynamicPricing)
+    const pricing = await db.select({
+      id: dynamicPricing.id,
+      entityType: dynamicPricing.entityType,
+      entityId: dynamicPricing.entityId,
+      basePrice: dynamicPricing.basePrice,
+      currentPrice: dynamicPricing.currentPrice,
+      demandMultiplier: dynamicPricing.demandMultiplier,
+      timeMultiplier: dynamicPricing.timeMultiplier,
+      inventoryLevel: dynamicPricing.inventoryLevel,
+      totalBookings: dynamicPricing.totalBookings,
+      recentBookings: dynamicPricing.recentBookings,
+      lastUpdated: dynamicPricing.lastUpdated,
+      isActive: dynamicPricing.isActive
+    }).from(dynamicPricing)
       .where(and(
         eq(dynamicPricing.entityType, entityType),
         eq(dynamicPricing.entityId, entityId)
@@ -228,7 +267,20 @@ export class DynamicPricingService {
 
   // Get price history for analytics
   async getPriceHistory(entityType: string, entityId: number, hours: number = 24) {
-    const pricing = await db.select().from(dynamicPricing)
+    const pricing = await db.select({
+      id: dynamicPricing.id,
+      entityType: dynamicPricing.entityType,
+      entityId: dynamicPricing.entityId,
+      basePrice: dynamicPricing.basePrice,
+      currentPrice: dynamicPricing.currentPrice,
+      demandMultiplier: dynamicPricing.demandMultiplier,
+      timeMultiplier: dynamicPricing.timeMultiplier,
+      inventoryLevel: dynamicPricing.inventoryLevel,
+      totalBookings: dynamicPricing.totalBookings,
+      recentBookings: dynamicPricing.recentBookings,
+      lastUpdated: dynamicPricing.lastUpdated,
+      isActive: dynamicPricing.isActive
+    }).from(dynamicPricing)
       .where(and(
         eq(dynamicPricing.entityType, entityType),
         eq(dynamicPricing.entityId, entityId)
