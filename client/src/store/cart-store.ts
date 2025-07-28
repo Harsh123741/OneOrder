@@ -24,10 +24,10 @@ interface CartState {
 }
 
 // Helper function to check if user is authenticated
-const isAuthenticated = () => {
-  const token = localStorage.getItem('token');
-  console.log('isAuthenticated check:', { token: !!token });
-  return !!token;
+// The app uses session-based auth, so we check if there's a current user ID in the cart store
+const isAuthenticated = (currentUserId: number | null) => {
+  console.log('isAuthenticated check:', { currentUserId: !!currentUserId });
+  return !!currentUserId;
 };
 
 // Helper function to get auth headers for API requests
@@ -62,7 +62,7 @@ export const useCartStore = create<CartState>()(
           set({ isLoading: true });
           const currentUserId = get().currentUserId;
           
-          if (currentUserId && isAuthenticated()) {
+          if (currentUserId && isAuthenticated(currentUserId)) {
             // Save to database
             const cartItemData = {
               itemId: item.id,
@@ -127,7 +127,7 @@ export const useCartStore = create<CartState>()(
           set({ isLoading: true });
           const currentUserId = get().currentUserId;
           
-          if (currentUserId && isAuthenticated()) {
+          if (currentUserId && isAuthenticated(currentUserId)) {
             // Find the database ID for this cart item
             const currentItems = get().items;
             const item = currentItems.find(i => i.id === id);
@@ -157,7 +157,7 @@ export const useCartStore = create<CartState>()(
           set({ isLoading: true });
           const currentUserId = get().currentUserId;
           
-          if (currentUserId && isAuthenticated()) {
+          if (currentUserId && isAuthenticated(currentUserId)) {
             const currentItems = get().items;
             const item = currentItems.find(i => i.id === id);
             
@@ -189,7 +189,8 @@ export const useCartStore = create<CartState>()(
         try {
           set({ isLoading: true });
           
-          if (isAuthenticated()) {
+          const currentUserId = get().currentUserId;
+          if (currentUserId && isAuthenticated(currentUserId)) {
             await apiRequest('DELETE', '/api/cart/clear');
           }
           
@@ -223,7 +224,7 @@ export const useCartStore = create<CartState>()(
         const currentUserId = get().currentUserId;
         console.log('Cart sync: Current user ID in store:', currentUserId);
         
-        if (!currentUserId || !isAuthenticated()) {
+        if (!currentUserId || !isAuthenticated(currentUserId)) {
           // Clear cart if not authenticated
           console.log('Cart sync: User not authenticated or no user ID, clearing cart');
           set({ items: [] });
