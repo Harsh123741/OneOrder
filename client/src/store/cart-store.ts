@@ -247,6 +247,16 @@ export const useCartStore = create<CartState>()(
           
           // Clear local state and set checkout flow flag
           set({ items: [], isCheckoutFlow });
+          
+          // Reset checkout flow flag after a short delay if not in checkout pages
+          if (isCheckoutFlow) {
+            setTimeout(() => {
+              const currentLocation = window.location.pathname;
+              if (!currentLocation.includes('/checkout') && !currentLocation.includes('/payment')) {
+                set({ isCheckoutFlow: false });
+              }
+            }, 1000);
+          }
         } catch (error) {
           console.error('Failed to clear cart:', error);
           // Fallback to local clear only

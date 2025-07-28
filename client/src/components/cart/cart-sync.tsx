@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
+import { useCartStore } from '@/store/cart-store';
 import { useLocation } from 'wouter';
 
 export function CartSync() {
   const { user } = useAuth();
   const cartStore = useCart();
+  const cartStoreState = useCartStore();
   const { syncCart, clearCart, setCurrentUser, items } = cartStore;
   const [location, setLocation] = useLocation();
   const previousUserIdRef = useRef<number | null>(null);
@@ -60,11 +62,11 @@ export function CartSync() {
     const previousItemCount = previousItemCountRef.current;
     const previousFlightCount = previousFlightCountRef.current;
     
-    // Only trigger on actual changes after initial load
-    if (previousItemCount > 0 || previousFlightCount > 0) {
+    // Only trigger on actual changes after initial load and NOT during checkout flow
+    if ((previousItemCount > 0 || previousFlightCount > 0) && !cartStoreState.isCheckoutFlow) {
       // If user removed flights (flight count went from >0 to 0), clear entire cart and redirect
       if (previousFlightCount > 0 && currentFlightCount === 0) {
-        console.log('Cart: Flight removed, clearing entire cart and redirecting to home');
+        console.log('Cart: Flight removed by user, clearing entire cart and redirecting to home');
         clearCart();
         if (location !== '/') {
           setLocation('/');
@@ -72,7 +74,7 @@ export function CartSync() {
       }
       // If cart had items but now doesn't (all items removed), redirect to home
       else if (previousItemCount > 0 && currentItemCount === 0) {
-        console.log('Cart: All items removed, redirecting to home');
+        console.log('Cart: All items removed by user, redirecting to home');
         if (location !== '/') {
           setLocation('/');
         }
@@ -82,7 +84,7 @@ export function CartSync() {
     // Update the refs
     previousItemCountRef.current = currentItemCount;
     previousFlightCountRef.current = currentFlightCount;
-  }, [items, clearCart, location, setLocation]);
+  }, [items, clearCart, location, setLocation, cartStoreState.isCheckoutFlow]);
 
   return null; // This is a utility component that doesn't render anything
 }
