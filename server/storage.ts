@@ -541,6 +541,13 @@ export class DatabaseStorage implements IStorage {
       .set({ isAvailable })
       .where(eq(seats.id, id))
       .returning();
+    
+    if (seat) {
+      console.log(`Seat availability updated: seatId ${id} (${seat.seatNumber}) -> ${isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}`);
+    } else {
+      console.log(`Failed to update seat availability: seatId ${id} not found`);
+    }
+    
     return seat || undefined;
   }
 
@@ -657,17 +664,22 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db.select().from(orders).where(eq(orders.id, id));
     if (!order) return undefined;
     
+    console.log(`Cancelling order ${order.orderNumber} - restoring seat availability`);
+    
     // Restore seat availability if seats were assigned
     if (order.seatId) {
+      console.log(`Restoring single seat availability for seatId: ${order.seatId}`);
       await this.updateSeatAvailability(order.seatId, true);
     }
     
     // Restore multi-passenger seat availability
     if (order.assignedSeats && Array.isArray(order.assignedSeats)) {
       const assignedSeats = order.assignedSeats as any[];
+      console.log(`Restoring ${assignedSeats.length} assigned seats:`, assignedSeats.map(s => ({ seatId: s.seatId, seatNumber: s.seatNumber })));
       for (const seatAssignment of assignedSeats) {
         if (seatAssignment.seatId) {
           await this.updateSeatAvailability(seatAssignment.seatId, true);
+          console.log(`Restored seat availability for seatId: ${seatAssignment.seatId} (${seatAssignment.seatNumber})`);
         }
       }
     }

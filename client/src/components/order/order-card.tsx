@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plane, Calendar, Users, CreditCard } from "lucide-react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 
 interface OrderCardProps {
   order: any;
@@ -74,14 +75,20 @@ export default function OrderCard({
     });
   };
 
-  // Mock flight data (in real app, this would be fetched based on order.flightId)
-  const mockFlightData = {
-    flightNumber: "SL1234",
-    airline: "SkyLink Airlines",
-    departureAirport: "JFK",
-    arrivalAirport: "LAX",
-    departureTime: "2024-12-15T08:30:00Z",
-    duration: "5h 30m",
+  // Fetch flight data based on order.flightId
+  const { data: flight } = useQuery({
+    queryKey: ["/api/flights", order.flightId],
+    enabled: !!order.flightId,
+  });
+
+  // Get flight information - use flight data if available, otherwise use order details
+  const flightInfo = flight || {
+    flightNumber: order.flightNumber || "N/A",
+    airline: order.airline || "N/A",
+    departureAirport: order.departureAirport || "N/A", 
+    arrivalAirport: order.arrivalAirport || "N/A",
+    departureTime: order.departureTime || new Date().toISOString(),
+    duration: order.duration || "N/A",
   };
 
   return (
@@ -116,16 +123,16 @@ export default function OrderCard({
             <div className="flex items-center space-x-2 mb-2">
               <Plane className="h-4 w-4 text-airline-blue" />
               <span className="font-medium text-gray-900">
-                {mockFlightData.departureAirport} →{" "}
-                {mockFlightData.arrivalAirport}
+                {flightInfo.departureAirport} →{" "}
+                {flightInfo.arrivalAirport}
               </span>
             </div>
             <p className="text-sm text-gray-600">
-              {formatDate(mockFlightData.departureTime)} •{" "}
-              {formatTime(mockFlightData.departureTime)}
+              {formatDate(flightInfo.departureTime)} •{" "}
+              {formatTime(flightInfo.departureTime)}
             </p>
             <p className="text-sm text-gray-600">
-              {mockFlightData.airline} {mockFlightData.flightNumber}
+              {flightInfo.airline} {flightInfo.flightNumber}
             </p>
           </div>
 
@@ -135,10 +142,18 @@ export default function OrderCard({
               <span className="text-sm text-gray-600">Passenger</span>
             </div>
             <p className="font-medium text-gray-900">
-              {order.passengerInfo?.firstName} {order.passengerInfo?.lastName}
+              {Array.isArray(order.passengerInfo) 
+                ? `${order.passengerInfo[0]?.firstName} ${order.passengerInfo[0]?.lastName}${order.passengerInfo.length > 1 ? ` +${order.passengerInfo.length - 1} more` : ''}`
+                : `${order.passengerInfo?.firstName || ''} ${order.passengerInfo?.lastName || ''}`
+              }
             </p>
             <p className="text-sm text-gray-600">
-              Seat {order.seatId ? "12E" : "Not selected"} • Economy
+              {order.assignedSeats && Array.isArray(order.assignedSeats) && order.assignedSeats.length > 0
+                ? `Seats ${order.assignedSeats.map((seat: any) => seat.seatNumber).join(', ')}`
+                : order.seatId 
+                  ? `Seat ${order.assignedSeats?.[0]?.seatNumber || 'Assigned'}`
+                  : "Seat not selected"
+              } • Economy
             </p>
           </div>
 
@@ -148,13 +163,39 @@ export default function OrderCard({
               <span className="text-sm text-gray-600">Services</span>
             </div>
             <p className="text-sm text-gray-900">
-              {order.selectedServices?.length || 0} additional services
+              {(() => {
+                let serviceCount = 0;
+                if (order.selectedServices?.length) {
+                  serviceCount += order.selectedServices.length;
+                }
+                if (Array.isArray(order.passengerInfo)) {
+                  order.passengerInfo.forEach((passenger: any) => {
+                    if (passenger.services?.length) {
+                      serviceCount += passenger.services.length;
+                    }
+                  });
+                }
+                return `${serviceCount} additional services`;
+              })()}
             </p>
-            {order.selectedServices?.length > 0 && (
-              <p className="text-xs text-gray-500">
-                Priority Boarding, Extra Legroom
-              </p>
-            )}
+            {(() => {
+              const allServices: string[] = [];
+              if (order.selectedServices?.length) {
+                allServices.push(...order.selectedServices.map((s: any) => s.name));
+              }
+              if (Array.isArray(order.passengerInfo)) {
+                order.passengerInfo.forEach((passenger: any) => {
+                  if (passenger.services?.length) {
+                    allServices.push(...passenger.services.map((s: any) => s.name));
+                  }
+                });
+              }
+              return allServices.length > 0 && (
+                <p className="text-xs text-gray-500">
+                  {allServices.slice(0, 2).join(', ')}{allServices.length > 2 ? ` +${allServices.length - 2} more` : ''}
+                </p>
+              );
+            })()}
           </div>
         </div>
 
