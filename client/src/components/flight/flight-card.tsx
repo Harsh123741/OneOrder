@@ -14,7 +14,7 @@ interface FlightCardProps {
 
 export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
-  const { addFlight } = useCart();
+  const { addFlight, items } = useCart();
 
   const handleSelectFlight = () => {
     if (onSelect) {
@@ -62,123 +62,109 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   };
 
   return (
-    <Card className="airline-card">
-      <CardContent className="p-6">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          {/* Flight Details */}
-          <div className="flex-1 space-y-4">
-            {/* Airline Info */}
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-airline-blue rounded-lg flex items-center justify-center">
-                <Plane className="h-5 w-5 text-white" />
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow border-2 border-gray-100 hover:border-airline-blue/30">
+      <CardContent className="p-0">
+        <div className="flex flex-col xl:flex-row">
+          {/* Flight Info */}
+          <div className="flex-1 p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4">
+              <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-airline-blue rounded-full flex items-center justify-center">
+                  <Plane className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-base sm:text-lg">{flight.flightNumber}</h3>
+                  <p className="text-gray-600 text-xs sm:text-sm">{flight.airline}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">
-                  {flight.airline}
-                </h3>
-                <p className="text-sm text-gray-600">{flight.flightNumber}</p>
-              </div>
+              <Badge variant="outline" className="self-start sm:self-center text-xs">
+                {flight.stops === 0 ? "Direct" : `${flight.stops} Stop${flight.stops > 1 ? 's' : ''}`}
+              </Badge>
             </div>
 
-            {/* Route and Times */}
-            <div className="flex items-center space-x-8">
-              {/* Departure */}
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatTime(flight.departureTime)}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {flight.departureAirport}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {formatDate(flight.departureTime)}
+            {/* Route and Time */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 items-center mb-4">
+              <div className="text-center sm:text-left">
+                <div className="text-lg sm:text-2xl font-bold">{flight.departureAirport}</div>
+                <div className="text-gray-600 text-xs sm:text-sm">
+                  {new Date(flight.departureTime).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
                 </div>
               </div>
 
-              {/* Flight Path */}
-              <div className="flex-1 flex flex-col items-center">
-                <div className="text-sm text-gray-600 mb-1">
-                  {flight.duration}
+              <div className="text-center flex flex-col items-center">
+                <div className="text-xs sm:text-sm text-gray-600 mb-1">{flight.duration}</div>
+                <div className="flex items-center gap-1 sm:gap-2 w-full max-w-16 sm:max-w-24">
+                  <div className="flex-1 h-0.5 bg-gray-300"></div>
+                  <Plane className="h-3 w-3 sm:h-4 sm:w-4 text-airline-blue rotate-90" />
+                  <div className="flex-1 h-0.5 bg-gray-300"></div>
                 </div>
-                <div className="w-full border-t-2 border-dashed border-gray-300 relative">
-                  <Plane className="absolute -top-2 left-1/2 transform -translate-x-1/2 h-4 w-4 text-airline-blue bg-white" />
-                </div>
-                <div className="mt-1">{getStopsBadge(flight.stops)}</div>
-                {flight.stops > 0 && flight.stopAirports && (
+                {flight.stops > 0 && (
                   <div className="text-xs text-gray-500 mt-1">
-                    via {flight.stopAirports.join(", ")}
+                    via {flight.stopAirports?.join(', ') || 'connection'}
                   </div>
                 )}
               </div>
 
-              {/* Arrival */}
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900">
-                  {formatTime(flight.arrivalTime)}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {flight.arrivalAirport}
-                </div>
-                <div className="text-xs text-gray-500">
-                  {formatDate(flight.arrivalTime)}
+              <div className="text-center sm:text-right">
+                <div className="text-lg sm:text-2xl font-bold">{flight.arrivalAirport}</div>
+                <div className="text-gray-600 text-xs sm:text-sm">
+                  {new Date(flight.arrivalTime).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* Aircraft Info */}
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span className="flex items-center space-x-1">
-                <Calendar className="h-4 w-4" />
-                <span>{flight.aircraft}</span>
+            {/* Aircraft and Date */}
+            <div className="flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
+              <span className="flex items-center gap-1">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                {new Date(flight.departureTime).toLocaleDateString()}
               </span>
-              <span className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{flight.availableSeats} seats left</span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+                {flight.aircraft}
               </span>
             </div>
           </div>
 
           {/* Price and Actions */}
-          <div className="text-center lg:text-right space-y-3 min-w-[280px]">
-            <DynamicPricingDisplay
-              flightId={flight.id}
-              currentPrice={parseFloat(flight.price)}
-              basePrice={parseFloat(flight.price)}
-              showFareHold={false}
-              className="text-sm"
-            />
+          <div className="border-t xl:border-t-0 xl:border-l p-4 sm:p-6 xl:min-w-[280px] xl:max-w-[320px]">
+            <div className="space-y-3">
+              <DynamicPricingDisplay
+                flightId={flight.id}
+                currentPrice={parseFloat(flight.price)}
+                basePrice={parseFloat(flight.price)}
+                showFareHold={false}
+                className="text-sm"
+              />
 
-            <FareHoldButton
-              flightId={flight.id}
-              currentPrice={parseFloat(flight.price)}
-              className="text-sm"
-            />
+              <FareHoldButton
+                flightId={flight.id}
+                currentPrice={parseFloat(flight.price)}
+                className="text-sm"
+                isFlightInCart={items.some(item => item.type === 'flight' && item.id === flight.id)}
+              />
 
-            <div className="space-y-2">
-              <Button
-                onClick={handleSelectFlight}
-                className="w-full lg:w-auto airline-button-primary"
-              >
-                Select Flight
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  onClick={handleSelectFlight}
+                  className="w-full airline-button-primary"
+                >
+                  Select Flight
+                </Button>
 
-              <div className="text-xs text-gray-500">
-                {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
-                Class • {flight.availableSeats || 0} seats left
+                <div className="text-xs text-gray-500 text-center">
+                  {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
+                  Class • {flight.availableSeats || 0} seats left
+                </div>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Expandable Details */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-airline-blue hover:text-blue-700"
-          >
-            View flight details
-          </Button>
         </div>
       </CardContent>
     </Card>
