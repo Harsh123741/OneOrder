@@ -70,11 +70,11 @@ export default function FlightSelectionModal({
       // Add flight to cart
       addFlight(flight, [], passengerCount);
 
-      // Add fare hold service to cart
+      // Add fare hold service to cart (common service for all passengers)
       addItem({
         id: `fare-hold-${flight.id}`,
         name: "24-Hour Fare Hold Protection",
-        description: `Lock in your fare for ${flight.flightNumber} until tomorrow`,
+        description: `Lock in your fare for ${flight.flightNumber} until tomorrow (covers all ${passengerCount} ${passengerCount === 1 ? 'passenger' : 'passengers'})`,
         price: 49.99,
         type: "service",
         quantity: 1,
@@ -82,7 +82,9 @@ export default function FlightSelectionModal({
           flightId: flight.id,
           holdDuration: 24,
           lockedFarePrice: parseFloat(flight.price),
-          serviceType: "fare_protection"
+          serviceType: "fare_protection",
+          isCommonService: true, // Flag to indicate this is not passenger-specific
+          passengerCount: passengerCount
         }
       });
 

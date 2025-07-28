@@ -22,6 +22,7 @@ import {
   MapPin,
   Lock,
   Wallet,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -750,10 +751,27 @@ export default function OrderDetails() {
             {(() => {
               const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
               
+              // Get common services (fare hold, etc.) from selectedServices or cart-based services
+              const commonServices = ((order as any)?.selectedServices || []).filter((service: any) => 
+                service.name?.includes('Fare Hold') || 
+                service.details?.serviceType === 'fare_protection' ||
+                service.details?.isCommonService === true
+              );
+              
               // Check if any passenger has services
-              const hasAnyServices = passengers.some((passenger: any) => 
+              const hasPassengerServices = passengers.some((passenger: any) => 
                 passenger.services && Array.isArray(passenger.services) && passenger.services.length > 0
-              ) || ((order as any)?.selectedServices && (order as any).selectedServices.length > 0);
+              );
+              
+              // Check for other selected services (non-common)
+              const hasOtherServices = ((order as any)?.selectedServices && (order as any).selectedServices.length > 0) && 
+                ((order as any).selectedServices.some((service: any) => 
+                  !service.name?.includes('Fare Hold') && 
+                  service.details?.serviceType !== 'fare_protection' && 
+                  service.details?.isCommonService !== true
+                ));
+
+              const hasAnyServices = hasPassengerServices || hasOtherServices || commonServices.length > 0;
 
               if (!hasAnyServices) {
                 return (
@@ -770,6 +788,48 @@ export default function OrderDetails() {
 
               return (
                 <div className="space-y-6">
+                  {/* Common Services Section */}
+                  {commonServices.length > 0 && (
+                    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                      <h4 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
+                        <Shield className="w-4 h-4" />
+                        Travel Protection & Common Services
+                      </h4>
+                      <div className="space-y-3">
+                        {commonServices.map((service: any, serviceIndex: number) => (
+                          <div
+                            key={serviceIndex}
+                            className="flex items-center justify-between py-3 px-4 bg-white rounded-lg border"
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <Shield className="text-white w-4 h-4" />
+                              </div>
+                              <div>
+                                <span className="font-medium">{service.name}</span>
+                                {service.quantity > 1 && (
+                                  <span className="text-sm text-gray-600 ml-2">x{service.quantity}</span>
+                                )}
+                                <p className="text-sm text-gray-600">{service.description}</p>
+                                {service.details?.passengerCount && (
+                                  <Badge variant="outline" className="text-xs mt-1">
+                                    Covers all {service.details.passengerCount} passenger{service.details.passengerCount !== 1 ? 's' : ''}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <span className="font-semibold text-blue-600">
+                                ${(parseFloat(service.price) * (service.quantity || 1)).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Passenger-Specific Services */}
                   {passengers.map((passenger: any, passengerIndex: number) => {
                     // Get services for this passenger
                     const passengerServices = passenger.services && Array.isArray(passenger.services) 
@@ -899,7 +959,13 @@ export default function OrderDetails() {
                   {/* Services by Phase */}
                   <div className="space-y-6">
                     {(() => {
-                      const servicesByPhase = services.reduce((acc: any, service: any) => {
+                      // Filter out fare hold services (booking-time only services)
+                      const filteredServices = services.filter((service: any) => 
+                        !service.name?.includes('Fare Hold') && 
+                        service.name !== '24-Hour Fare Hold Protection'
+                      );
+                      
+                      const servicesByPhase = filteredServices.reduce((acc: any, service: any) => {
                         if (!acc[service.phase]) acc[service.phase] = [];
                         acc[service.phase].push(service);
                         return acc;

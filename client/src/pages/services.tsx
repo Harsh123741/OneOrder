@@ -116,7 +116,7 @@ export default function Services() {
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-sm font-medium text-airline-blue">Step 2 of 4</span>
+            <span className="text-sm font-medium text-airline-blue">Step 2 of 3</span>
             <span className="text-sm text-gray-500">Additional Services</span>
           </div>
           <Progress value={50} className="h-2" />
@@ -132,16 +132,6 @@ export default function Services() {
                   ✓
                 </div>
                 <span className="text-sm font-medium text-green-600 hidden md:block">Flight Selected</span>
-              </div>
-              
-              <div className="w-8 h-0.5 bg-gray-300"></div>
-              
-              {/* Seats Chosen */}
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-sm font-semibold">
-                  2
-                </div>
-                <span className="text-sm font-medium text-gray-500 hidden md:block">Seats (at Check-in)</span>
               </div>
               
               <div className="w-8 h-0.5 bg-gray-300"></div>
