@@ -42,6 +42,11 @@ export default function Flights() {
       if (params.returnDate && !params.returnDate.includes("T")) {
         params.returnDate = `${params.returnDate}T00:00:00Z`;
       }
+      // Ensure tripType exists
+      if (!params.tripType) {
+        params.tripType = "one_way";
+      }
+      console.log("Flight search params:", params);
       setSearchParams(params);
     } else {
       // Redirect back to home if no search params
