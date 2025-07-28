@@ -34,12 +34,13 @@ export function CartSync() {
           setTimeout(() => {
             const currentItems = cartStore.items; // Get fresh items from store
             const flightItems = currentItems.filter(item => item.type === 'flight');
+            console.log('Cart sync: Checking for redirect - Items:', currentItems.length, 'Flights:', flightItems.length, 'Location:', location);
             if (flightItems.length > 0 && location !== '/services') {
               console.log('Cart sync: User has flight in cart, redirecting to services');
               setLocation('/services');
             }
-          }, 500);
-        }, 200);
+          }, 1000);
+        }, 500);
       } else {
         console.log('Cart sync: User logged out, cart cleared');
       }
@@ -47,7 +48,7 @@ export function CartSync() {
       // Update the ref with current user ID
       previousUserIdRef.current = currentUserId;
     }
-  }, [user, syncCart, setCurrentUser]);
+  }, [user, syncCart, setCurrentUser, location, setLocation]);
 
   // Monitor cart items for flight removal
   useEffect(() => {
