@@ -132,7 +132,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               </span>
               <span className="flex items-center space-x-1">
                 <Clock className="h-4 w-4" />
-                <span>{flight.availableSeats} seats left</span>
+                <span>{flight.availableSeats > 0 ? `${flight.availableSeats} seats left` : 'Sold out'}</span>
               </span>
             </div>
           </div>
