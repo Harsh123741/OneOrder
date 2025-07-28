@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Plane, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
-import SimpleDynamicPricing from "@/components/simple-dynamic-pricing";
+import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 
 interface FlightCardProps {
   flight: any;
@@ -132,7 +132,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               </span>
               <span className="flex items-center space-x-1">
                 <Clock className="h-4 w-4" />
-                <span>{flight.availableSeats > 0 ? `${flight.availableSeats} seats left` : 'Sold out'}</span>
+                <span>{flight.availableSeats} seats left</span>
               </span>
             </div>
           </div>
