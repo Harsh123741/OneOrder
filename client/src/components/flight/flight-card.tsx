@@ -129,6 +129,9 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                 {flight.aircraft}
               </span>
+              <span className="flex items-center gap-1">
+                <span className="text-green-600 font-medium">{flight.availableSeats || 0} seats left</span>
+              </span>
             </div>
           </div>
 
@@ -139,15 +142,8 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 flightId={flight.id}
                 currentPrice={parseFloat(flight.price)}
                 basePrice={parseFloat(flight.price)}
-                showFareHold={false}
+                showFareHold={true}
                 className="text-sm"
-              />
-
-              <FareHoldButton
-                flightId={flight.id}
-                currentPrice={parseFloat(flight.price)}
-                className="text-sm"
-                isFlightInCart={items.some(item => item.type === 'flight' && item.id === flight.id)}
               />
 
               <div className="space-y-2">
