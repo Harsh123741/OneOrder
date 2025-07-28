@@ -18,12 +18,15 @@ export function useCart() {
   } = useCartStore();
 
   const addFlight = (flight: any, seats?: any[], passengerCount: number = 1) => {
+    // Use dynamic pricing current price if available, otherwise fall back to flight.price
+    const currentPrice = flight.dynamicPricing?.currentPrice || flight.price;
+    
     const flightItem: CartItem = {
       id: `flight-${flight.id}`,
       type: 'flight',
       name: `${flight.departureAirport} → ${flight.arrivalAirport}`,
       description: `${flight.airline} ${flight.flightNumber} (${passengerCount} ${passengerCount === 1 ? 'passenger' : 'passengers'})`,
-      price: parseFloat(flight.price) * passengerCount,
+      price: parseFloat(currentPrice) * passengerCount,
       quantity: 1,
       flightId: flight.id,
       details: {
@@ -32,6 +35,9 @@ export function useCart() {
         duration: flight.duration,
         aircraft: flight.aircraft,
         passengerCount: passengerCount,
+        originalPrice: flight.originalPrice || flight.price,
+        dynamicPrice: currentPrice,
+        isLocked: flight.dynamicPricing?.isLocked || false,
       },
     };
 

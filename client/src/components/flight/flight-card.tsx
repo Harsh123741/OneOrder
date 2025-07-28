@@ -140,13 +140,6 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               className="text-sm"
             />
 
-            <FareHoldButton
-              flightId={flight.id}
-              currentPrice={parseFloat(flight.price)}
-              className="text-sm"
-              userFareHold={flight.dynamicPricing?.userFareHold}
-            />
-
             <div className="space-y-2">
               <Button
                 onClick={handleSelectFlight}

@@ -219,3 +219,9 @@ The architecture supports a scalable, maintainable airline management system wit
   - **AUTHENTICATION INTEGRATION**: Enhanced flight search API to check user-specific fare holds with proper JWT token validation
   - **RESPONSIVE DESIGN IMPROVEMENTS**: Updated flights component layout for better mobile/tablet/desktop responsiveness
   - **VERIFIED FUNCTIONALITY**: Confirmed new users see dynamic pricing while fare hold users see locked prices only for themselves
+- **CRITICAL PASSWORD & PRICING FIXES (January 2025)**:
+  - **FIXED PASSWORD OVERRIDE BUG**: Resolved issue where new user registration was overriding existing users' passwords
+  - **ENHANCED PASSWORD SECURITY**: Increased bcrypt salt rounds to 12 and ensured unique password hashes for each user
+  - **CART PRICING SYNCHRONIZATION**: Fixed cart to display dynamic pricing current prices instead of static flight prices
+  - **DYNAMIC PRICING INTEGRATION**: Cart now correctly uses `flight.dynamicPricing.currentPrice` for accurate pricing display
+  - **VERIFIED AUTHENTICATION**: Confirmed each user now has unique password hashes and can authenticate independently
