@@ -5,6 +5,7 @@ import { Clock, Plane, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
+import FareHoldButton from "@/components/fare-hold-button";
 
 interface FlightCardProps {
   flight: any;
@@ -143,7 +144,13 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               flightId={flight.id}
               currentPrice={parseFloat(flight.price)}
               basePrice={parseFloat(flight.price)}
-              showFareHold={true}
+              showFareHold={false}
+              className="text-sm"
+            />
+
+            <FareHoldButton
+              flightId={flight.id}
+              currentPrice={parseFloat(flight.price)}
               className="text-sm"
             />
 
@@ -157,7 +164,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
 
               <div className="text-xs text-gray-500">
                 {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
-                Class
+                Class • {flight.availableSeats || 0} seats left
               </div>
             </div>
           </div>

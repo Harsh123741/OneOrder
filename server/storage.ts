@@ -472,12 +472,32 @@ export class DatabaseStorage implements IStorage {
     passengers: number;
     class: string;
   }): Promise<Flight[]> {
-    return await db.select().from(flights).where(
-      and(
-        ilike(flights.departureAirport, `%${criteria.from}%`),
-        ilike(flights.arrivalAirport, `%${criteria.to}%`),
-        gte(flights.availableSeats, criteria.passengers)
-      )
+    // Get flights and calculate available seats
+    const allFlights = await db.select().from(flights);
+    
+    const flightsWithSeats = await Promise.all(
+      allFlights.map(async (flight) => {
+        // Count available seats for this flight
+        const availableSeats = await db.select({
+          count: sql<number>`count(*)`
+        }).from(seats).where(
+          and(
+            eq(seats.flightId, flight.id),
+            eq(seats.isAvailable, true)
+          )
+        );
+        
+        return {
+          ...flight,
+          availableSeats: availableSeats[0]?.count || 0
+        };
+      })
+    );
+    
+    return flightsWithSeats.filter(
+      (flight) => flight.availableSeats >= criteria.passengers &&
+        flight.departureAirport.toLowerCase().includes(criteria.from.toLowerCase()) &&
+        flight.arrivalAirport.toLowerCase().includes(criteria.to.toLowerCase())
     );
   }
 

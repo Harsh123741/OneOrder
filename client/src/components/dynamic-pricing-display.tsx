@@ -51,28 +51,6 @@ export default function DynamicPricingDisplay({
     retry: false
   });
 
-  // Create fare hold mutation
-  const createFareHoldMutation = useMutation({
-    mutationFn: async (data: { flightId: number; holdDuration: number }) => {
-      const response = await apiRequest('POST', '/api/fare-hold', data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/fare-hold', flightId] });
-      toast({
-        title: "Fare Hold Created",
-        description: "Your flight price has been locked successfully!",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Fare Hold Failed",
-        description: error.message || "Unable to create fare hold",
-        variant: "destructive"
-      });
-    }
-  });
-
   // Track price changes
   useEffect(() => {
     if (pricingData?.currentPrice) {
@@ -172,12 +150,7 @@ export default function DynamicPricingDisplay({
     return 'text-gray-600';
   };
 
-  const handleCreateFareHold = (duration: number) => {
-    createFareHoldMutation.mutate({
-      flightId,
-      holdDuration: duration
-    });
-  };
+
 
   return (
     <Card className={`${className} border-2 border-dashed border-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50`}>
@@ -193,114 +166,46 @@ export default function DynamicPricingDisplay({
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {/* Current Price Display */}
         <div className="text-center">
           <div className="text-3xl font-bold text-gray-900">
             ${currentPriceNum.toFixed(2)}
           </div>
           <div className="text-sm text-gray-600">
-            Base price: ${basePriceNum.toFixed(2)}
+            Base: ${basePriceNum.toFixed(2)}
           </div>
           <div className={`text-sm font-medium ${getPriceChangeColor()}`}>
-            {priceChange > 0 ? '+' : ''}${(currentPriceNum - basePriceNum).toFixed(2)} from base
+            {priceChange > 0 ? '+' : ''}${(currentPriceNum - basePriceNum).toFixed(2)} 
+            ({priceChange > 0 ? '+' : ''}{priceChange.toFixed(1)}%)
           </div>
         </div>
 
-        {/* Demand and Time Factors */}
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="flex justify-between mb-1">
-              <span>Demand Level</span>
-              <span>{demandLevel.toFixed(0)}%</span>
-            </div>
-            <Progress value={demandLevel} className="h-2" />
-          </div>
-          <div>
-            <div className="flex justify-between mb-1">
-              <span>Time Factor</span>
-              <span>{parseFloat(pricing.timeMultiplier).toFixed(2)}x</span>
-            </div>
-            <Progress 
-              value={Math.min((parseFloat(pricing.timeMultiplier) - 0.8) / 1.2 * 100, 100)} 
-              className="h-2" 
-            />
-          </div>
+        {/* Demand Indicator */}
+        <div className="text-center">
+          {demandLevel > 80 ? (
+            <Badge variant="destructive" className="text-xs">
+              🔥 High Demand - Only Few Left!
+            </Badge>
+          ) : demandLevel > 60 ? (
+            <Badge variant="secondary" className="text-xs">
+              ⚡ Fast Booking - Popular Flight
+            </Badge>
+          ) : demandLevel > 40 ? (
+            <Badge variant="outline" className="text-xs">
+              📈 Moderate Demand
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs">
+              💺 Good Availability
+            </Badge>
+          )}
         </div>
 
-        {/* Recent Activity */}
-        <div className="text-xs text-gray-600 text-center">
-          {pricing.totalBookings} total bookings • {pricing.inventoryLevel} seats available
-        </div>
-
-        {/* Price History Trend */}
-        {priceHistory && priceHistory.length > 1 && (
-          <div className="text-xs text-gray-600">
-            <span className="font-medium">24h trend:</span>
-            {priceHistory.length > 1 && (
-              <span className={`ml-1 ${
-                parseFloat(priceHistory[0].price) > parseFloat(priceHistory[priceHistory.length - 1].price) 
-                  ? 'text-red-600' : 'text-green-600'
-              }`}>
-                {parseFloat(priceHistory[0].price) > parseFloat(priceHistory[priceHistory.length - 1].price) 
-                  ? '↗ Increasing' : '↘ Decreasing'}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Fare Hold Section */}
-        {showFareHold && (
-          <div className="border-t pt-4">
-            {fareHold ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="flex items-center gap-2 text-green-800">
-                  <Shield className="w-4 h-4" />
-                  <span className="font-medium">Price Locked!</span>
-                </div>
-                <div className="text-sm text-green-700 mt-1">
-                  Locked at ${parseFloat(fareHold.lockedFarePrice).toFixed(2)} until{' '}
-                  {new Date(fareHold.expiresAt).toLocaleString()}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Lock this price with Fare Hold
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
-                    onClick={() => handleCreateFareHold(24)}
-                    disabled={createFareHoldMutation.isPending}
-                  >
-                    24hrs - $49.99
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs"
-                    onClick={() => handleCreateFareHold(48)}
-                    disabled={createFareHoldMutation.isPending}
-                  >
-                    48hrs - $79.99
-                  </Button>
-                </div>
-                <div className="text-xs text-gray-500 text-center">
-                  Protect against price increases while you decide
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Real-time Update Indicator */}
+        {/* Live Update Indicator */}
         <div className="text-xs text-gray-500 text-center flex items-center justify-center gap-1">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          Live pricing updates every 30 seconds
+          Live pricing • Updates every 30s
         </div>
       </CardContent>
     </Card>
