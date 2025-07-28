@@ -26,7 +26,14 @@ interface CartState {
 // Helper function to check if user is authenticated
 const isAuthenticated = () => {
   const token = localStorage.getItem('token');
+  console.log('isAuthenticated check:', { token: !!token });
   return !!token;
+};
+
+// Helper function to get auth headers for API requests
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
 
 // Helper function to get current user ID from token
@@ -53,8 +60,9 @@ export const useCartStore = create<CartState>()(
       addItem: async (item) => {
         try {
           set({ isLoading: true });
+          const currentUserId = get().currentUserId;
           
-          if (isAuthenticated()) {
+          if (currentUserId && isAuthenticated()) {
             // Save to database
             const cartItemData = {
               itemId: item.id,
@@ -117,8 +125,9 @@ export const useCartStore = create<CartState>()(
       removeItem: async (id) => {
         try {
           set({ isLoading: true });
+          const currentUserId = get().currentUserId;
           
-          if (isAuthenticated()) {
+          if (currentUserId && isAuthenticated()) {
             // Find the database ID for this cart item
             const currentItems = get().items;
             const item = currentItems.find(i => i.id === id);
@@ -146,8 +155,9 @@ export const useCartStore = create<CartState>()(
       updateQuantity: async (id, quantity) => {
         try {
           set({ isLoading: true });
+          const currentUserId = get().currentUserId;
           
-          if (isAuthenticated()) {
+          if (currentUserId && isAuthenticated()) {
             const currentItems = get().items;
             const item = currentItems.find(i => i.id === id);
             
@@ -194,64 +204,28 @@ export const useCartStore = create<CartState>()(
         }
       },
       
-      setCurrentUser: async (userId: number | null) => {
+      setCurrentUser: (userId: number | null) => {
         const currentUserId = get().currentUserId;
+        console.log(`Cart: User changing from ${currentUserId} to ${userId}`);
         
-        // If user changed, handle cart transition
+        // Always update the user ID and clear cart when user changes
         if (currentUserId !== userId) {
-          console.log(`Cart: User changing from ${currentUserId} to ${userId}`);
-          
-          // Case 1: User logging out (userId becomes null)
           if (userId === null) {
             console.log('Cart: User logging out, clearing cart');
-            set({ currentUserId: userId, items: [] });
-            return;
-          }
-          
-          // Case 2: User logging in or switching users
-          if (currentUserId === null) {
-            // User logging in - set new user but don't clear cart yet
-            // syncCart() will handle loading their cart from database
-            console.log('Cart: User logging in, preparing to sync cart');
-            set({ currentUserId: userId });
           } else {
-            // User switching - save current user's cart first
-            if (isAuthenticated()) {
-              try {
-                const currentItems = get().items;
-                for (const item of currentItems) {
-                  if (!item.databaseId) {
-                    await apiRequest('POST', '/api/cart/add', {
-                      itemId: item.id,
-                      type: item.type,
-                      name: item.name,
-                      description: item.description,
-                      price: item.price.toString(),
-                      quantity: item.quantity,
-                      flightId: item.flightId || null,
-                      serviceId: item.serviceId || null,
-                      seatId: item.seatId || null,
-                      passengerId: item.passengerId || null,
-                      details: item.details || {},
-                    });
-                  }
-                }
-              } catch (error) {
-                console.error('Failed to save cart before user switch:', error);
-              }
-            }
-            
-            // Clear cart and set new user for user switch
-            console.log('Cart: User switching, clearing cart');
-            set({ currentUserId: userId, items: [] });
+            console.log('Cart: User logging in, preparing to sync cart');
           }
+          set({ currentUserId: userId, items: [] });
         }
       },
       
       syncCart: async () => {
-        if (!isAuthenticated()) {
+        const currentUserId = get().currentUserId;
+        console.log('Cart sync: Current user ID in store:', currentUserId);
+        
+        if (!currentUserId || !isAuthenticated()) {
           // Clear cart if not authenticated
-          console.log('Cart sync: User not authenticated, clearing cart');
+          console.log('Cart sync: User not authenticated or no user ID, clearing cart');
           set({ items: [] });
           return;
         }
