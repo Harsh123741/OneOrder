@@ -174,6 +174,11 @@ export const useCartStore = create<CartState>()(
           const currentItems = get().items;
           const removedItem = currentItems.find(item => item.id === id);
           
+          // If user is manually removing an item, ensure checkout flow flag is reset
+          if (isUserInitiated) {
+            set({ isCheckoutFlow: false });
+          }
+          
           if (currentUserId && isAuthenticated(currentUserId)) {
             // Find the database ID for this cart item
             const item = currentItems.find(i => i.id === id);

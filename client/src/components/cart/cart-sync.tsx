@@ -62,6 +62,16 @@ export function CartSync() {
     const previousItemCount = previousItemCountRef.current;
     const previousFlightCount = previousFlightCountRef.current;
     
+    // Debug logging
+    console.log('Cart sync: Monitoring cart changes', {
+      previousItemCount,
+      currentItemCount,
+      previousFlightCount,
+      currentFlightCount,
+      isCheckoutFlow: cartStoreState.isCheckoutFlow,
+      location
+    });
+    
     // Only trigger on actual changes after initial load and NOT during checkout flow
     if ((previousItemCount > 0 || previousFlightCount > 0) && !cartStoreState.isCheckoutFlow) {
       // If user removed flights (flight count went from >0 to 0), clear entire cart and redirect
@@ -79,6 +89,8 @@ export function CartSync() {
           setLocation('/');
         }
       }
+    } else if (cartStoreState.isCheckoutFlow) {
+      console.log('Cart sync: Skipping redirect due to checkout flow');
     }
     
     // Update the refs
