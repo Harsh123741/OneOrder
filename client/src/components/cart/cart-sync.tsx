@@ -29,17 +29,6 @@ export function CartSync() {
         // Add a small delay to ensure the user state and authentication is properly set
         setTimeout(async () => {
           await syncCart();
-          
-          // After syncing cart, check if user has flight items and redirect to services
-          setTimeout(() => {
-            const currentItems = cartStore.items; // Get fresh items from store
-            const flightItems = currentItems.filter(item => item.type === 'flight');
-            console.log('Cart sync: Checking for redirect - Items:', currentItems.length, 'Flights:', flightItems.length, 'Location:', location);
-            if (flightItems.length > 0 && location !== '/services') {
-              console.log('Cart sync: User has flight in cart, redirecting to services');
-              setLocation('/services');
-            }
-          }, 1000);
         }, 500);
       } else {
         console.log('Cart sync: User logged out, cart cleared');
@@ -48,7 +37,21 @@ export function CartSync() {
       // Update the ref with current user ID
       previousUserIdRef.current = currentUserId;
     }
-  }, [user, syncCart, setCurrentUser, location, setLocation]);
+  }, [user, syncCart, setCurrentUser]);
+
+  // Separate effect to handle redirect after cart items are loaded
+  useEffect(() => {
+    // Only check for redirect if user is logged in and we have items
+    if (user?.id && items.length > 0) {
+      const flightItems = items.filter(item => item.type === 'flight');
+      console.log('Cart sync: Checking for redirect - Items:', items.length, 'Flights:', flightItems.length, 'Location:', location);
+      
+      if (flightItems.length > 0 && location !== '/services' && location !== '/checkout' && location !== '/payment') {
+        console.log('Cart sync: User has flight in cart, redirecting to services');
+        setLocation('/services');
+      }
+    }
+  }, [user, items, location, setLocation]);
 
   // Monitor cart items for flight removal
   useEffect(() => {
