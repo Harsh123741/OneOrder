@@ -1449,6 +1449,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Record booking for price simulation
+  app.post("/api/pricing/flight/:flightId/record-booking", async (req, res) => {
+    try {
+      const flightId = parseInt(req.params.flightId);
+      const { quantity = 1 } = req.body;
+      
+      await dynamicPricingService.recordBooking('flight', flightId, quantity);
+      res.json({ success: true, message: `Recorded ${quantity} booking(s) for flight ${flightId}` });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -1,11 +1,16 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Plane, Calendar } from "lucide-react";
+import { Clock, Plane, Calendar, TrendingUp } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import FareHoldButton from "@/components/fare-hold-button";
+import { FareHoldModal } from "@/components/fare-hold-modal";
+import { FareHoldNotification } from "@/components/fare-hold-notification";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface FlightCardProps {
   flight: any;
@@ -15,6 +20,29 @@ interface FlightCardProps {
 export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
   const { addFlight, items } = useCart();
+  const [isFareHoldModalOpen, setIsFareHoldModalOpen] = useState(false);
+  const [simulatedPrice, setSimulatedPrice] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+
+  // Simulate price increase for demonstration
+  const simulatePriceIncrease = useMutation({
+    mutationFn: async () => {
+      // Simulate a price increase by recording a booking
+      await apiRequest(`/api/pricing/flight/${flight.id}/record-booking`, "POST", { quantity: 3 });
+      return apiRequest(`/api/pricing/flight/${flight.id}`, "GET");
+    },
+    onSuccess: (data) => {
+      if (data && typeof data === 'object' && 'currentPrice' in data) {
+        const newPrice = parseFloat(data.currentPrice as string);
+        const originalPrice = parseFloat(flight.price);
+        if (newPrice > originalPrice) {
+          setSimulatedPrice(newPrice);
+          setIsFareHoldModalOpen(true);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: [`/api/pricing/flight/${flight.id}`] });
+    }
+  });
 
   const handleSelectFlight = () => {
     if (onSelect) {
@@ -155,6 +183,18 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   Select Flight
                 </Button>
 
+                {/* Simulation Button for Demonstration */}
+                <Button
+                  onClick={() => simulatePriceIncrease.mutate()}
+                  disabled={simulatePriceIncrease.isPending}
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs border-orange-200 text-orange-600 hover:bg-orange-50"
+                >
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  {simulatePriceIncrease.isPending ? "Simulating..." : "Demo: Trigger Price Increase"}
+                </Button>
+
                 <div className="text-xs text-gray-500 text-center">
                   {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
                   Class • {flight.availableSeats || 0} seats left
@@ -164,6 +204,17 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           </div>
         </div>
       </CardContent>
+
+      {/* Fare Hold Modal */}
+      <FareHoldModal
+        isOpen={isFareHoldModalOpen}
+        onClose={() => setIsFareHoldModalOpen(false)}
+        flightId={flight.id}
+        currentPrice={simulatedPrice || parseFloat(flight.price)}
+        originalPrice={parseFloat(flight.price)}
+        flightNumber={flight.flightNumber}
+        route={`${flight.departureAirport} → ${flight.arrivalAirport}`}
+      />
     </Card>
   );
 }
