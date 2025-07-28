@@ -18,14 +18,28 @@ export function useCart() {
   } = useCartStore();
 
   const addFlight = (flight: any, seats?: any[], passengerCount: number = 1) => {
-    // Use dynamic pricing current price if available, otherwise fall back to flight.price
-    const currentPrice = flight.dynamicPricing?.currentPrice || flight.price;
+    // Priority: fare hold locked price > dynamic pricing > flight price
+    let currentPrice = flight.price;
+    let isLocked = false;
+    
+    if (flight.fareHold?.lockedFarePrice) {
+      // Use fare hold locked price if available and not expired
+      const expiresAt = new Date(flight.fareHold.expiresAt);
+      if (expiresAt > new Date()) {
+        currentPrice = flight.fareHold.lockedFarePrice;
+        isLocked = true;
+      }
+    } else if (flight.dynamicPricing?.currentPrice) {
+      // Use dynamic pricing if no fare hold
+      currentPrice = flight.dynamicPricing.currentPrice;
+      isLocked = flight.dynamicPricing.isLocked || false;
+    }
     
     const flightItem: CartItem = {
       id: `flight-${flight.id}`,
       type: 'flight',
       name: `${flight.departureAirport} → ${flight.arrivalAirport}`,
-      description: `${flight.airline} ${flight.flightNumber} (${passengerCount} ${passengerCount === 1 ? 'passenger' : 'passengers'})`,
+      description: `${flight.airline} ${flight.flightNumber} (${passengerCount} ${passengerCount === 1 ? 'passenger' : 'passengers'})${flight.fareHold ? ' - Fare Protected' : ''}`,
       price: parseFloat(currentPrice) * passengerCount,
       quantity: 1,
       flightId: flight.id,
@@ -37,7 +51,8 @@ export function useCart() {
         passengerCount: passengerCount,
         originalPrice: flight.originalPrice || flight.price,
         dynamicPrice: currentPrice,
-        isLocked: flight.dynamicPricing?.isLocked || false,
+        isLocked: isLocked,
+        fareHold: flight.fareHold || null,
       },
     };
 

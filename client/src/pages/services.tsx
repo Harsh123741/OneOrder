@@ -39,11 +39,22 @@ export default function Services() {
   }, [setLocation]);
 
   const { data: services = [] } = useQuery({
-    queryKey: ["/api/services", currentPhase],
+    queryKey: ["/api/services", currentPhase, selectedFlight?.fareHold ? 'with-fare-hold' : 'no-fare-hold'],
     queryFn: async () => {
       const response = await fetch(`/api/services?phase=${currentPhase}`);
-      return response.json();
+      const allServices = await response.json();
+      
+      // Filter out fare hold services if user already has an active fare hold
+      if (selectedFlight?.fareHold) {
+        return allServices.filter((service: any) => 
+          service.category !== 'booking_protection' || 
+          !service.name.toLowerCase().includes('fare hold')
+        );
+      }
+      
+      return allServices;
     },
+    enabled: !!selectedFlight
   });
 
   const handleBack = () => {
@@ -185,11 +196,19 @@ export default function Services() {
               <div>
                 <h4 className="font-semibold text-gray-900 mb-1">Total Flight Cost</h4>
                 <p className="text-lg font-bold text-airline-blue">
-                  ${(parseFloat(selectedFlight.price) * passengerCount).toFixed(2)}
+                  ${(parseFloat(selectedFlight.fareHold?.lockedFarePrice || selectedFlight.price) * passengerCount).toFixed(2)}
                 </p>
                 <p className="text-sm text-gray-600">
-                  ${parseFloat(selectedFlight.price).toFixed(2)} × {passengerCount} {passengerCount === 1 ? 'passenger' : 'passengers'}
+                  ${parseFloat(selectedFlight.fareHold?.lockedFarePrice || selectedFlight.price).toFixed(2)} × {passengerCount} {passengerCount === 1 ? 'passenger' : 'passengers'}
                 </p>
+                {selectedFlight.fareHold && (
+                  <div className="mt-2 flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm text-green-600 font-medium">
+                      Fare Protected until {new Date(selectedFlight.fareHold.expiresAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>

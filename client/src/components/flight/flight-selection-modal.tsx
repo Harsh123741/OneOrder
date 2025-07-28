@@ -10,9 +10,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Shield, ArrowRight, Info } from "lucide-react";
+import { Clock, Shield, ArrowRight, Info, CreditCard } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface FlightSelectionModalProps {
   flight: any;
@@ -26,9 +28,63 @@ export default function FlightSelectionModal({
   onClose,
 }: FlightSelectionModalProps) {
   const [, setLocation] = useLocation();
-  const { addFlight, addItem } = useCart();
+  const { addFlight } = useCart();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [fareHoldPaymentOpen, setFareHoldPaymentOpen] = useState(false);
+  const [selectedHold, setSelectedHold] = useState<{duration: number, price: number} | null>(null);
+
+  // Mutation for creating fare hold with payment
+  const fareHoldMutation = useMutation({
+    mutationFn: async ({ duration, price }: { duration: number, price: number }) => {
+      const response = await apiRequest('POST', '/api/fare-hold', {
+        flightId: flight.id,
+        holdDuration: duration,
+        holdPrice: price,
+        lockedFarePrice: parseFloat(flight.price)
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Fare Hold Purchased",
+        description: `Flight price locked at $${parseFloat(flight.price).toFixed(2)} for ${selectedHold?.duration} hours`,
+      });
+      
+      // Store selected flight with fare hold data
+      const flightWithFareHold = {
+        ...flight,
+        fareHold: {
+          id: data.id,
+          lockedFarePrice: parseFloat(flight.price),
+          expiresAt: data.expiresAt,
+          duration: selectedHold?.duration
+        }
+      };
+      sessionStorage.setItem("selectedFlight", JSON.stringify(flightWithFareHold));
+
+      // Get passenger count
+      const storedSearch = sessionStorage.getItem("flightSearch");
+      const passengerCount = storedSearch ? JSON.parse(storedSearch).passengers : 1;
+
+      // Add flight to cart with locked price (no fare hold service added to cart since it's already paid)
+      addFlight(flightWithFareHold, [], passengerCount);
+
+      // Close modals and navigate to services
+      setFareHoldPaymentOpen(false);
+      setSelectedHold(null);
+      onClose();
+      setLocation("/services");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Payment Failed",
+        description: error.message || "Could not process fare hold payment",
+        variant: "destructive",
+      });
+    }
+  });
 
   const handleContinueWithoutFareHold = () => {
     setIsProcessing(true);
@@ -55,56 +111,14 @@ export default function FlightSelectionModal({
   };
 
   const handleSelectWithFareHold = () => {
-    setIsProcessing(true);
-    
-    try {
-      // Store selected flight
-      sessionStorage.setItem("selectedFlight", JSON.stringify(flight));
+    // Open fare hold payment modal with 24-hour option
+    setSelectedHold({ duration: 24, price: 49.99 });
+    setFareHoldPaymentOpen(true);
+  };
 
-      // Get passenger count
-      const storedSearch = sessionStorage.getItem("flightSearch");
-      const passengerCount = storedSearch
-        ? JSON.parse(storedSearch).passengers
-        : 1;
-
-      // Add flight to cart
-      addFlight(flight, [], passengerCount);
-
-      // Add fare hold service to cart (common service for all passengers)
-      addItem({
-        id: `fare-hold-${flight.id}`,
-        name: "24-Hour Fare Hold Protection",
-        description: `Lock in your fare for ${flight.flightNumber} until tomorrow (covers all ${passengerCount} ${passengerCount === 1 ? 'passenger' : 'passengers'})`,
-        price: 49.99,
-        type: "service",
-        quantity: 1,
-        details: {
-          flightId: flight.id,
-          holdDuration: 24,
-          lockedFarePrice: parseFloat(flight.price),
-          serviceType: "fare_protection",
-          isCommonService: true, // Flag to indicate this is not passenger-specific
-          passengerCount: passengerCount
-        }
-      });
-
-      toast({
-        title: "Fare Hold Selected",
-        description: "24-hour fare hold protection has been added to your cart.",
-      });
-
-      onClose();
-      setLocation("/services");
-    } catch (error: any) {
-      console.error("Fare hold selection error:", error);
-      
-      toast({
-        title: "Error",
-        description: "Failed to add fare hold to cart. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
+  const handleConfirmFareHoldPayment = () => {
+    if (selectedHold) {
+      fareHoldMutation.mutate(selectedHold);
     }
   };
 
@@ -236,6 +250,75 @@ export default function FlightSelectionModal({
           </div>
         </div>
       </DialogContent>
+
+      {/* Fare Hold Payment Modal */}
+      <Dialog open={fareHoldPaymentOpen} onOpenChange={setFareHoldPaymentOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-blue-600" />
+              Confirm Fare Hold Payment
+            </DialogTitle>
+            <DialogDescription>
+              Complete payment to lock in your current flight price
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedHold && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Flight:</span>
+                  <span>{flight.airline} {flight.flightNumber}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Route:</span>
+                  <span>{flight.departureAirport} → {flight.arrivalAirport}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Current Price:</span>
+                  <span className="font-bold text-green-600">${parseFloat(flight.price).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Hold Duration:</span>
+                  <span>{selectedHold.duration} hours</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Hold Fee:</span>
+                  <span>${selectedHold.price.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t">
+                  <span className="font-bold">Total Payment:</span>
+                  <span className="font-bold">${selectedHold.price.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800">
+                <strong>Price Protection:</strong> Your flight price will be locked at ${parseFloat(flight.price).toFixed(2)} for {selectedHold.duration} hours, even if market prices increase.
+              </div>
+
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => setFareHoldPaymentOpen(false)}
+                  disabled={fareHoldMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  onClick={handleConfirmFareHoldPayment}
+                  disabled={fareHoldMutation.isPending}
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  {fareHoldMutation.isPending ? 'Processing...' : 'Pay Now'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
