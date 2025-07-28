@@ -10,7 +10,7 @@ import {
 } from "@shared/schema";
 import bcrypt from "bcrypt";
 import { db } from "./db";
-import { eq, and, gte, lte, ilike, desc } from "drizzle-orm";
+import { eq, and, gte, lte, ilike, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods

@@ -285,11 +285,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Flight routes
   app.post("/api/flights/search", async (req, res) => {
     try {
-      const searchCriteria = flightSearchSchema.parse(req.body);
+      console.log("Flight search request body:", req.body);
+      
+      // Simple validation without schema for now
+      const { from, to, departureDate, passengers = 1, class: flightClass = "economy", tripType = "one_way" } = req.body;
+      
+      if (!from || !to || !departureDate) {
+        return res.status(400).json({ message: "Missing required fields: from, to, departureDate" });
+      }
+      
+      const searchCriteria = {
+        from,
+        to,
+        departureDate,
+        passengers: typeof passengers === 'string' ? parseInt(passengers) : passengers,
+        class: flightClass,
+        tripType
+      };
+      
+      console.log("Search criteria:", searchCriteria);
       const flights = await storage.searchFlights(searchCriteria);
       res.json(flights);
-    } catch (error) {
-      res.status(400).json({ message: "Invalid search criteria", error });
+    } catch (error: any) {
+      console.error("Flight search error:", error);
+      res.status(400).json({ message: "Flight search failed", error: error.message });
     }
   });
 

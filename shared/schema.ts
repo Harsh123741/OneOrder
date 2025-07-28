@@ -371,8 +371,8 @@ export const flightSearchSchema = z.object({
   from: z.string().min(1, "Please select departure airport"),
   to: z.string().min(1, "Please select arrival airport"),
   departureDate: z.string().min(1, "Please select departure date"),
-  returnDate: z.string().optional(),
-  passengers: z.number().min(1).max(9),
+  returnDate: z.string().optional().nullable(),
+  passengers: z.union([z.number(), z.string().transform(Number)]).pipe(z.number().min(1).max(9)),
   class: z.enum(["economy", "premium_economy", "business", "first"]),
   tripType: z.enum(["round_trip", "one_way", "multi_city"]),
 });
