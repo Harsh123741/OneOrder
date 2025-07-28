@@ -61,16 +61,20 @@ export const useCartStore = create<CartState>()(
               type: item.type,
               name: item.name,
               description: item.description,
-              price: item.price,
+              price: item.price.toString(),
               quantity: item.quantity,
-              flightId: item.flightId,
+              flightId: item.flightId || null,
               serviceId: item.serviceId || null,
               seatId: item.seatId || null,
               passengerId: item.passengerId || null,
-              details: item.details || null,
+              details: item.details || {},
             };
             
-            await apiRequest('POST', '/api/cart/add', cartItemData);
+            const response = await apiRequest('POST', '/api/cart/add', cartItemData);
+            const savedItem = await response.json();
+            
+            // Update the item with database ID for future operations
+            item.databaseId = savedItem.id;
           }
           
           // Update local state
@@ -188,11 +192,39 @@ export const useCartStore = create<CartState>()(
         }
       },
       
-      setCurrentUser: (userId: number | null) => {
+      setCurrentUser: async (userId: number | null) => {
         const currentUserId = get().currentUserId;
         
         // If user changed, clear cart to prevent showing wrong user's items
         if (currentUserId !== userId) {
+          // First, save current cart items to database if user was authenticated
+          if (currentUserId && isAuthenticated()) {
+            try {
+              const currentItems = get().items;
+              // Save each item to database before clearing
+              for (const item of currentItems) {
+                if (!item.databaseId) {
+                  await apiRequest('POST', '/api/cart', {
+                    itemId: item.id,
+                    type: item.type,
+                    name: item.name,
+                    description: item.description,
+                    price: item.price.toString(),
+                    quantity: item.quantity,
+                    flightId: item.flightId || null,
+                    serviceId: item.serviceId || null,
+                    seatId: item.seatId || null,
+                    passengerId: item.passengerId || null,
+                    details: item.details || {},
+                  });
+                }
+              }
+            } catch (error) {
+              console.error('Failed to save cart before user switch:', error);
+            }
+          }
+          
+          // Clear cart and set new user
           set({ currentUserId: userId, items: [] });
         }
       },
@@ -270,6 +302,13 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'airline-cart-storage',
+      // Only persist basic state, not items (items should come from database for authenticated users)
+      partialize: (state) => ({
+        isOpen: state.isOpen,
+        currentUserId: state.currentUserId,
+        // Only persist items for guest users (no currentUserId)
+        items: state.currentUserId ? [] : state.items,
+      }),
     }
   )
 );

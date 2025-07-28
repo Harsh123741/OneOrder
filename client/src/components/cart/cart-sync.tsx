@@ -11,14 +11,17 @@ export function CartSync() {
     const currentUserId = user?.id || null;
     const previousUserId = previousUserIdRef.current;
 
-    // Always update the current user in cart store to handle user switching
-    setCurrentUser(currentUserId);
-
     // If user changed (including login/logout), handle cart sync
     if (currentUserId !== previousUserId) {
+      // Always update the current user in cart store to handle user switching
+      setCurrentUser(currentUserId);
+      
       if (currentUserId) {
-        // User logged in or switched - sync with their cart
-        syncCart();
+        // User logged in or switched - sync with their cart from database
+        // Add a small delay to ensure the user state is properly set
+        setTimeout(() => {
+          syncCart();
+        }, 100);
       }
       // Note: clearCart is now handled by setCurrentUser when user changes
       
