@@ -14,7 +14,6 @@ interface DynamicPricingDisplayProps {
   basePrice?: number;
   showFareHold?: boolean;
   className?: string;
-  isFlightInCart?: boolean;
 }
 
 export default function DynamicPricingDisplay({
@@ -23,7 +22,6 @@ export default function DynamicPricingDisplay({
   basePrice,
   showFareHold = true,
   className = "",
-  isFlightInCart = false,
 }: DynamicPricingDisplayProps) {
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [priceChangeDirection, setPriceChangeDirection] = useState<
@@ -61,11 +59,7 @@ export default function DynamicPricingDisplay({
 
   // Track price changes
   useEffect(() => {
-    if (
-      pricingData &&
-      typeof pricingData === "object" &&
-      "currentPrice" in pricingData
-    ) {
+    if (pricingData && typeof pricingData === 'object' && 'currentPrice' in pricingData) {
       const newPrice = parseFloat(pricingData.currentPrice as string);
 
       if (lastPrice !== null) {
@@ -94,7 +88,7 @@ export default function DynamicPricingDisplay({
       toast({
         title: "Fare Hold Added!",
         description: `Price locked at $${parseFloat(
-          data.lockedFarePrice,
+          data.lockedFarePrice
         ).toFixed(2)} until ${new Date(data.expiresAt).toLocaleDateString()}`,
       });
     },
@@ -108,13 +102,10 @@ export default function DynamicPricingDisplay({
   });
 
   const handleAddFareHold = (duration: number, price: number) => {
-    const currentPriceValue =
-      pricingData &&
-      typeof pricingData === "object" &&
-      "currentPrice" in pricingData
-        ? (pricingData.currentPrice as string)
-        : currentPrice?.toString() || "0";
-
+    const currentPriceValue = (pricingData && typeof pricingData === 'object' && 'currentPrice' in pricingData) 
+      ? pricingData.currentPrice as string 
+      : currentPrice?.toString() || "0";
+    
     fareHoldMutation.mutate({
       flightId: flightId,
       holdDuration: duration,
@@ -172,42 +163,21 @@ export default function DynamicPricingDisplay({
     );
   }
 
-  const pricing =
-    pricingData && typeof pricingData === "object"
-      ? {
-          currentPrice:
-            "currentPrice" in pricingData
-              ? (pricingData.currentPrice as string)
-              : currentPrice?.toString() || "0",
-          basePrice:
-            "basePrice" in pricingData
-              ? (pricingData.basePrice as string)
-              : basePrice?.toString() || "0",
-          demandMultiplier:
-            "demandMultiplier" in pricingData
-              ? (pricingData.demandMultiplier as string)
-              : "1.000",
-          timeMultiplier:
-            "timeMultiplier" in pricingData
-              ? (pricingData.timeMultiplier as string)
-              : "1.000",
-          totalBookings:
-            "totalBookings" in pricingData
-              ? (pricingData.totalBookings as number)
-              : 0,
-          inventoryLevel:
-            "inventoryLevel" in pricingData
-              ? (pricingData.inventoryLevel as number)
-              : 100,
-        }
-      : {
-          currentPrice: currentPrice?.toString() || "0",
-          basePrice: basePrice?.toString() || "0",
-          demandMultiplier: "1.000",
-          timeMultiplier: "1.000",
-          totalBookings: 0,
-          inventoryLevel: 100,
-        };
+  const pricing = (pricingData && typeof pricingData === 'object') ? {
+    currentPrice: ('currentPrice' in pricingData) ? pricingData.currentPrice as string : currentPrice?.toString() || "0",
+    basePrice: ('basePrice' in pricingData) ? pricingData.basePrice as string : basePrice?.toString() || "0",
+    demandMultiplier: ('demandMultiplier' in pricingData) ? pricingData.demandMultiplier as string : "1.000",
+    timeMultiplier: ('timeMultiplier' in pricingData) ? pricingData.timeMultiplier as string : "1.000",
+    totalBookings: ('totalBookings' in pricingData) ? pricingData.totalBookings as number : 0,
+    inventoryLevel: ('inventoryLevel' in pricingData) ? pricingData.inventoryLevel as number : 100,
+  } : {
+    currentPrice: currentPrice?.toString() || "0",
+    basePrice: basePrice?.toString() || "0",
+    demandMultiplier: "1.000",
+    timeMultiplier: "1.000",
+    totalBookings: 0,
+    inventoryLevel: 100,
+  };
 
   const currentPriceNum = parseFloat(pricing.currentPrice);
   const basePriceNum = parseFloat(pricing.basePrice);
@@ -233,14 +203,6 @@ export default function DynamicPricingDisplay({
 
   return (
     <Card className={`${className} border border-gray-200 bg-white`}>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-blue-500" />
-            Flight Price
-          </div>
-        </CardTitle>
-      </CardHeader>
       <CardContent className="p-4 space-y-3">
         {/* Current Price Display */}
         <div className="text-center">
@@ -253,13 +215,9 @@ export default function DynamicPricingDisplay({
             </div>
           )}
           {Math.abs(priceChange) > 0.1 && (
-            <div
-              className={`text-xs sm:text-sm font-medium ${getPriceChangeColor()}`}
-            >
+            <div className={`text-xs sm:text-sm font-medium ${getPriceChangeColor()}`}>
               {priceChange > 0 ? "+" : ""}$
-              {(currentPriceNum - basePriceNum).toFixed(2)} (
-              {priceChange > 0 ? "+" : ""}
-              {priceChange.toFixed(1)}%)
+              {(currentPriceNum - basePriceNum).toFixed(2)} ({priceChange > 0 ? "+" : ""}{priceChange.toFixed(1)}%)
             </div>
           )}
         </div>
@@ -285,8 +243,8 @@ export default function DynamicPricingDisplay({
           )}
         </div>
 
-        {/* Fare Hold Section - Only show if flight is in cart */}
-        {showFareHold && isFlightInCart && !fareHold && (
+        {/* Fare Hold Section */}
+        {showFareHold && !fareHold && (
           <div className="border-t pt-3">
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center gap-1 text-xs text-blue-600">
@@ -315,8 +273,8 @@ export default function DynamicPricingDisplay({
           </div>
         )}
 
-        {/* Fare Hold Active - Only show if flight is in cart AND has fare hold */}
-        {showFareHold && isFlightInCart && fareHold && (
+        {/* Fare Hold Active */}
+        {showFareHold && fareHold && (
           <div className="border-t pt-3">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-xs text-green-700">
@@ -324,7 +282,7 @@ export default function DynamicPricingDisplay({
                 <span className="font-medium">Price Locked!</span>
               </div>
               <div className="text-xs text-green-600 mt-1">
-                At ${parseFloat(fareHold.lockedFarePrice).toFixed(2)} until{" "}
+                At ${parseFloat(fareHold.lockedFarePrice).toFixed(2)} until{' '}
                 {new Date(fareHold.expiresAt).toLocaleDateString()}
               </div>
             </div>
