@@ -7,12 +7,14 @@ import { TrendingUp, TrendingDown, Clock, Shield, Zap } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCart } from "@/hooks/use-cart";
 
 interface DynamicPricingDisplayProps {
   flightId: number;
   currentPrice?: number;
   basePrice?: number;
   showFareHold?: boolean;
+  isFlightInCart?: boolean;
   className?: string;
 }
 
@@ -21,6 +23,7 @@ export default function DynamicPricingDisplay({
   currentPrice,
   basePrice,
   showFareHold = true,
+  isFlightInCart = false,
   className = "",
 }: DynamicPricingDisplayProps) {
   const [lastPrice, setLastPrice] = useState<number | null>(null);
@@ -29,6 +32,7 @@ export default function DynamicPricingDisplay({
   >("same");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { addService, items } = useCart();
 
   // Fetch current pricing data
   const {
@@ -50,12 +54,11 @@ export default function DynamicPricingDisplay({
     retry: false,
   });
 
-  // Check for existing fare hold
-  const { data: fareHold } = useQuery({
-    queryKey: ["/api/fare-hold", flightId],
-    enabled: showFareHold && !!flightId && !pricingError,
-    retry: false,
-  });
+  // Check if fare hold service is already in cart
+  const hasFareHoldInCart = items.some(item => 
+    item.type === 'service' && 
+    item.category === 'fare-hold'
+  );
 
   // Track price changes
   useEffect(() => {
@@ -76,41 +79,20 @@ export default function DynamicPricingDisplay({
     }
   }, [pricingData, lastPrice]);
 
-  // Fare hold mutation
-  const fareHoldMutation = useMutation({
-    mutationFn: (data: any) =>
-      apiRequest(`/api/fare-hold`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/fare-hold", flightId] });
-      toast({
-        title: "Fare Hold Added!",
-        description: `Price locked at $${parseFloat(
-          data.lockedFarePrice
-        ).toFixed(2)} until ${new Date(data.expiresAt).toLocaleDateString()}`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add fare hold",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleAddFareHold = (duration: number, price: number) => {
-    const currentPriceValue = (pricingData && typeof pricingData === 'object' && 'currentPrice' in pricingData) 
-      ? pricingData.currentPrice as string 
-      : currentPrice?.toString() || "0";
+    // Add fare hold service to cart
+    addService({
+      id: duration === 24 ? 999 : 998, // Use specific IDs for fare hold services
+      name: `Fare Hold - ${duration}h`,
+      description: `Lock current price for ${duration} hours`,
+      price: price,
+      phase: 'booking' as const,
+      category: 'fare-hold'
+    });
     
-    fareHoldMutation.mutate({
-      flightId: flightId,
-      holdDuration: duration,
-      holdPrice: price,
-      lockedFarePrice: currentPriceValue,
+    toast({
+      title: "Fare Hold Added!",
+      description: `Price protection for ${duration} hours added to cart for $${price.toFixed(2)}`,
     });
   };
 
@@ -243,8 +225,8 @@ export default function DynamicPricingDisplay({
           )}
         </div>
 
-        {/* Fare Hold Section */}
-        {showFareHold && !fareHold && (
+        {/* Fare Hold Section - only show if flight is in cart and no fare hold yet */}
+        {showFareHold && isFlightInCart && !hasFareHoldInCart && (
           <div className="border-t pt-3">
             <div className="text-center space-y-2">
               <div className="flex items-center justify-center gap-1 text-xs text-blue-600">
@@ -273,8 +255,8 @@ export default function DynamicPricingDisplay({
           </div>
         )}
 
-        {/* Fare Hold Active */}
-        {showFareHold && fareHold && (
+        {/* Fare Hold Active - only show if flight is in cart and has fare hold */}
+        {showFareHold && isFlightInCart && hasFareHoldInCart && (
           <div className="border-t pt-3">
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-xs text-green-700">
@@ -282,8 +264,7 @@ export default function DynamicPricingDisplay({
                 <span className="font-medium">Price Locked!</span>
               </div>
               <div className="text-xs text-green-600 mt-1">
-                At ${parseFloat(fareHold.lockedFarePrice).toFixed(2)} until{' '}
-                {new Date(fareHold.expiresAt).toLocaleDateString()}
+                Fare hold active in cart
               </div>
             </div>
           </div>
