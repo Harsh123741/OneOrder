@@ -299,18 +299,19 @@ export class DynamicPricingService {
   }
 
   // Create fare hold
-  async createFareHold(userId: number, flightId: number, holdDuration: number, holdPrice: number) {
+  async createFareHold(userId: number, flightId: number, holdDuration: number, holdPrice: number, lockedFarePrice?: number, paymentMethod?: string) {
     const currentPricing = await this.getCurrentPrice('flight', flightId);
     if (!currentPricing) throw new Error("Flight pricing not found");
 
     const expiresAt = new Date(Date.now() + (holdDuration * 60 * 60 * 1000));
+    const finalLockedPrice = lockedFarePrice || parseFloat(currentPricing.currentPrice);
     
     const [fareHold] = await db.insert(fareHolds).values({
       userId,
       flightId,
       holdDuration,
       holdPrice: holdPrice.toFixed(2),
-      lockedFarePrice: currentPricing.currentPrice,
+      lockedFarePrice: finalLockedPrice.toFixed(2),
       expiresAt
     }).returning();
 

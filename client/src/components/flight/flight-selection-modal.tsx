@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Shield, ArrowRight, Info, CreditCard } from "lucide-react";
+import { Clock, Shield, ArrowRight, Info, CreditCard, Wallet, University } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,15 +34,17 @@ export default function FlightSelectionModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [fareHoldPaymentOpen, setFareHoldPaymentOpen] = useState(false);
   const [selectedHold, setSelectedHold] = useState<{duration: number, price: number} | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
 
   // Mutation for creating fare hold with payment
   const fareHoldMutation = useMutation({
-    mutationFn: async ({ duration, price }: { duration: number, price: number }) => {
+    mutationFn: async ({ duration, price, paymentMethod }: { duration: number, price: number, paymentMethod: string }) => {
       const response = await apiRequest('POST', '/api/fare-hold', {
         flightId: flight.id,
         holdDuration: duration,
         holdPrice: price,
-        lockedFarePrice: parseFloat(flight.price)
+        lockedFarePrice: parseFloat(flight.price),
+        paymentMethod: paymentMethod
       });
       return response.json();
     },
@@ -74,6 +76,7 @@ export default function FlightSelectionModal({
       // Close modals and navigate to services
       setFareHoldPaymentOpen(false);
       setSelectedHold(null);
+      setSelectedPaymentMethod('');
       onClose();
       setLocation("/services");
     },
@@ -117,8 +120,11 @@ export default function FlightSelectionModal({
   };
 
   const handleConfirmFareHoldPayment = () => {
-    if (selectedHold) {
-      fareHoldMutation.mutate(selectedHold);
+    if (selectedHold && selectedPaymentMethod) {
+      fareHoldMutation.mutate({
+        ...selectedHold,
+        paymentMethod: selectedPaymentMethod
+      });
     }
   };
 
@@ -297,11 +303,56 @@ export default function FlightSelectionModal({
                 <strong>Price Protection:</strong> Your flight price will be locked at ${parseFloat(flight.price).toFixed(2)} for {selectedHold.duration} hours, even if market prices increase.
               </div>
 
+              {/* Payment Method Selection */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-gray-900">Select Payment Method</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant={selectedPaymentMethod === 'credit_card' ? 'default' : 'outline'}
+                    className="flex flex-col items-center p-4 h-auto"
+                    onClick={() => setSelectedPaymentMethod('credit_card')}
+                  >
+                    <CreditCard className="w-6 h-6 mb-2" />
+                    <span className="text-sm">Credit Card</span>
+                  </Button>
+                  
+                  <Button
+                    variant={selectedPaymentMethod === 'debit_card' ? 'default' : 'outline'}
+                    className="flex flex-col items-center p-4 h-auto"
+                    onClick={() => setSelectedPaymentMethod('debit_card')}
+                  >
+                    <CreditCard className="w-6 h-6 mb-2" />
+                    <span className="text-sm">Debit Card</span>
+                  </Button>
+                  
+                  <Button
+                    variant={selectedPaymentMethod === 'bank_transfer' ? 'default' : 'outline'}
+                    className="flex flex-col items-center p-4 h-auto"
+                    onClick={() => setSelectedPaymentMethod('bank_transfer')}
+                  >
+                    <University className="w-6 h-6 mb-2" />
+                    <span className="text-sm">Bank Transfer</span>
+                  </Button>
+                  
+                  <Button
+                    variant={selectedPaymentMethod === 'wallet' ? 'default' : 'outline'}
+                    className="flex flex-col items-center p-4 h-auto"
+                    onClick={() => setSelectedPaymentMethod('wallet')}
+                  >
+                    <Wallet className="w-6 h-6 mb-2" />
+                    <span className="text-sm">Wallet</span>
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex gap-3">
                 <Button 
                   variant="outline" 
                   className="flex-1"
-                  onClick={() => setFareHoldPaymentOpen(false)}
+                  onClick={() => {
+                    setFareHoldPaymentOpen(false);
+                    setSelectedPaymentMethod('');
+                  }}
                   disabled={fareHoldMutation.isPending}
                 >
                   Cancel
@@ -309,7 +360,7 @@ export default function FlightSelectionModal({
                 <Button 
                   className="flex-1 bg-blue-600 hover:bg-blue-700"
                   onClick={handleConfirmFareHoldPayment}
-                  disabled={fareHoldMutation.isPending}
+                  disabled={fareHoldMutation.isPending || !selectedPaymentMethod}
                 >
                   <CreditCard className="w-4 h-4 mr-2" />
                   {fareHoldMutation.isPending ? 'Processing...' : 'Pay Now'}

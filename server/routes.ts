@@ -1517,7 +1517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fare Hold Routes
   app.post("/api/fare-hold", authenticateToken, async (req: any, res) => {
     try {
-      const { flightId, holdDuration, holdPrice, lockedFarePrice } = req.body;
+      const { flightId, holdDuration, holdPrice, lockedFarePrice, paymentMethod } = req.body;
       const userId = req.user.userId;
       
       // Check if user already has an active hold for this flight
@@ -1531,33 +1531,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use provided holdPrice or calculate default
       const finalHoldPrice = holdPrice || (holdDuration === 24 ? 49.99 : holdDuration === 48 ? 79.99 : 99.99);
       
-      // Check wallet balance
-      const user = await storage.getUser(userId);
-      if (!user || parseFloat(user.walletBalance) < finalHoldPrice) {
+      // Validate payment method
+      const validPaymentMethods = ['credit_card', 'debit_card', 'bank_transfer', 'wallet'];
+      if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
         return res.status(400).json({ 
-          message: "Insufficient wallet balance",
-          required: finalHoldPrice.toFixed(2),
-          available: user?.walletBalance || "0.00"
+          message: "Invalid payment method", 
+          validMethods: validPaymentMethods 
         });
       }
       
-      // Deduct from wallet
-      await storage.updateWalletBalance(userId, -finalHoldPrice);
-      await storage.addWalletTransaction(
-        userId, 
-        finalHoldPrice, 
-        'debit', 
-        `Fare hold for ${holdDuration} hours - Flight ${flightId}`
-      );
+      // Process payment based on method
+      if (paymentMethod === 'wallet') {
+        // Check wallet balance and deduct if sufficient
+        const user = await storage.getUser(userId);
+        if (!user || parseFloat(user.walletBalance) < finalHoldPrice) {
+          return res.status(400).json({ 
+            message: "Insufficient wallet balance",
+            required: finalHoldPrice.toFixed(2),
+            available: user?.walletBalance || "0.00"
+          });
+        }
+        
+        // Deduct from wallet
+        await storage.updateWalletBalance(userId, -finalHoldPrice);
+        await storage.addWalletTransaction(
+          userId, 
+          finalHoldPrice, 
+          'debit', 
+          `Fare hold for ${holdDuration} hours - Flight ${flightId}`
+        );
+      } else {
+        // For other payment methods (credit_card, debit_card, bank_transfer), simulate payment processing
+        console.log(`Fare hold payment processed: User ${userId}, Amount: ${finalHoldPrice.toFixed(2)}, Method: ${paymentMethod}, Flight: ${flightId}`);
+        
+        // In a real system, you would integrate with payment gateways here
+        // For now, we'll just log the transaction and proceed
+        // You could add specific validation for each payment method here
+      }
       
       const fareHold = await dynamicPricingService.createFareHold(
         userId, 
         flightId, 
         holdDuration, 
-        finalHoldPrice
+        finalHoldPrice,
+        lockedFarePrice,
+        paymentMethod
       );
       
-      res.json(fareHold);
+      res.json({
+        ...fareHold,
+        paymentMethod: paymentMethod,
+        paymentStatus: 'completed'
+      });
     } catch (error) {
       console.error("Fare hold creation error:", error);
       res.status(500).json({ message: "Internal server error" });

@@ -28,12 +28,13 @@ export default function FareHoldButton({ flightId, currentPrice, className = "",
 
   // Mutation for creating fare hold
   const createFareHoldMutation = useMutation({
-    mutationFn: async ({ duration, price }: { duration: number, price: number }) => {
+    mutationFn: async ({ duration, price, paymentMethod }: { duration: number, price: number, paymentMethod: string }) => {
       const response = await apiRequest('POST', '/api/fare-hold', {
         flightId,
         holdDuration: duration,
         holdPrice: price,
-        lockedFarePrice: currentPrice
+        lockedFarePrice: currentPrice,
+        paymentMethod: paymentMethod
       });
       return response.json();
     },
