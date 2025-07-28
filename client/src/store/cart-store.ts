@@ -65,6 +65,18 @@ export const useCartStore = create<CartState>()(
           set({ isLoading: true });
           const currentUserId = get().currentUserId;
           
+          // If adding a flight, check if cart already has a flight and replace it
+          if (item.type === 'flight') {
+            const currentItems = get().items;
+            const existingFlights = currentItems.filter(i => i.type === 'flight');
+            
+            // Remove existing flights and all other items (start fresh with new flight)
+            if (existingFlights.length > 0) {
+              console.log('Cart: Replacing existing flight with new flight, clearing cart first');
+              await get().clearCart();
+            }
+          }
+          
           if (currentUserId && isAuthenticated(currentUserId)) {
             // Save to database
             const cartItemData = {

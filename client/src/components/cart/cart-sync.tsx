@@ -5,10 +5,12 @@ import { useLocation } from 'wouter';
 
 export function CartSync() {
   const { user } = useAuth();
-  const { syncCart, clearCart, setCurrentUser, items } = useCart();
+  const cartStore = useCart();
+  const { syncCart, clearCart, setCurrentUser, items } = cartStore;
   const [location, setLocation] = useLocation();
   const previousUserIdRef = useRef<number | null>(null);
   const previousItemCountRef = useRef<number>(0);
+  const previousFlightCountRef = useRef<number>(0);
 
   useEffect(() => {
     const currentUserId = user?.id || null;
@@ -30,12 +32,13 @@ export function CartSync() {
           
           // After syncing cart, check if user has flight items and redirect to services
           setTimeout(() => {
-            const flightItems = items.filter(item => item.type === 'flight');
+            const currentItems = cartStore.items; // Get fresh items from store
+            const flightItems = currentItems.filter(item => item.type === 'flight');
             if (flightItems.length > 0 && location !== '/services') {
               console.log('Cart sync: User has flight in cart, redirecting to services');
               setLocation('/services');
             }
-          }, 100);
+          }, 500);
         }, 200);
       } else {
         console.log('Cart sync: User logged out, cart cleared');
@@ -51,29 +54,30 @@ export function CartSync() {
     const currentItemCount = items.length;
     const currentFlightCount = items.filter(item => item.type === 'flight').length;
     const previousItemCount = previousItemCountRef.current;
+    const previousFlightCount = previousFlightCountRef.current;
     
     // Only trigger on actual changes after initial load
-    if (previousItemCount > 0) {
-      // If cart had items but now doesn't (item was removed), clear cart and redirect to home
-      if (currentItemCount === 0) {
-        console.log('Cart: All items removed, clearing cart and redirecting to home');
+    if (previousItemCount > 0 || previousFlightCount > 0) {
+      // If user removed flights (flight count went from >0 to 0), clear entire cart and redirect
+      if (previousFlightCount > 0 && currentFlightCount === 0) {
+        console.log('Cart: Flight removed, clearing entire cart and redirecting to home');
         clearCart();
         if (location !== '/') {
           setLocation('/');
         }
       }
-      
-      // If user specifically removed flights (but other items remain), redirect to home
-      else if (currentFlightCount === 0 && currentItemCount > 0) {
-        console.log('Cart: Flight removed, redirecting to home');
+      // If cart had items but now doesn't (all items removed), redirect to home
+      else if (previousItemCount > 0 && currentItemCount === 0) {
+        console.log('Cart: All items removed, redirecting to home');
         if (location !== '/') {
           setLocation('/');
         }
       }
     }
     
-    // Update the ref
+    // Update the refs
     previousItemCountRef.current = currentItemCount;
+    previousFlightCountRef.current = currentFlightCount;
   }, [items, clearCart, location, setLocation]);
 
   return null; // This is a utility component that doesn't render anything

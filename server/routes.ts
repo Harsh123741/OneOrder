@@ -1531,6 +1531,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/cart/clear", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      await storage.clearUserCart(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Clear cart error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   app.delete("/api/cart/:id", authenticateToken, async (req: any, res) => {
     try {
       const itemId = parseInt(req.params.id);
@@ -1542,16 +1553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
-    }
-  });
-
-  app.delete("/api/cart/clear", authenticateToken, async (req: any, res) => {
-    try {
-      const userId = req.user.userId;
-      await storage.clearUserCart(userId);
-      res.json({ success: true });
-    } catch (error) {
+      console.error("Remove cart item error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
