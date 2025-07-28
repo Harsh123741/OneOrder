@@ -13,8 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, Shield, ArrowRight, Info } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 
 interface FlightSelectionModalProps {
   flight: any;
@@ -30,34 +28,7 @@ export default function FlightSelectionModal({
   const [, setLocation] = useLocation();
   const { addFlight, addItem } = useCart();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
-
-  const fareHoldMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const token = localStorage.getItem("auth_token");
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-      
-      const response = await fetch('/api/fare-hold', {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create fare hold');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/fare-hold'] });
-    },
-  });
 
   const handleContinueWithoutFareHold = () => {
     setIsProcessing(true);
@@ -83,18 +54,10 @@ export default function FlightSelectionModal({
     setLocation("/services");
   };
 
-  const handleSelectWithFareHold = async () => {
+  const handleSelectWithFareHold = () => {
     setIsProcessing(true);
     
     try {
-      // Create fare hold request
-      const fareHoldData = {
-        flightId: flight.id,
-        holdDuration: 24, // 24 hours hold
-      };
-
-      await fareHoldMutation.mutateAsync(fareHoldData);
-
       // Store selected flight
       sessionStorage.setItem("selectedFlight", JSON.stringify(flight));
 
@@ -107,34 +70,35 @@ export default function FlightSelectionModal({
       // Add flight to cart
       addFlight(flight, [], passengerCount);
 
+      // Add fare hold service to cart
+      addItem({
+        id: `fare-hold-${flight.id}`,
+        name: "24-Hour Fare Hold Protection",
+        description: `Lock in your fare for ${flight.flightNumber} until tomorrow`,
+        price: 49.99,
+        type: "service",
+        quantity: 1,
+        details: {
+          flightId: flight.id,
+          holdDuration: 24,
+          lockedFarePrice: parseFloat(flight.price),
+          serviceType: "fare_protection"
+        }
+      });
+
       toast({
-        title: "Fare Hold Activated",
-        description: "Your fare is now locked for 24 hours. $49.99 has been deducted from your wallet.",
+        title: "Fare Hold Selected",
+        description: "24-hour fare hold protection has been added to your cart.",
       });
 
       onClose();
       setLocation("/services");
     } catch (error: any) {
-      console.error("Fare hold error:", error);
-      
-      let errorMessage = "Failed to activate fare hold. Please try again.";
-      
-      // Handle specific error messages from backend
-      if (error.message) {
-        if (error.message.includes("Insufficient wallet balance")) {
-          errorMessage = "Insufficient wallet balance. Please add funds to your wallet to purchase fare hold.";
-        } else if (error.message.includes("already have an active fare hold")) {
-          errorMessage = "You already have an active fare hold for this flight.";
-        } else if (error.message.includes("Authentication required")) {
-          errorMessage = "Please log in to purchase fare hold protection.";
-        } else {
-          errorMessage = error.message;
-        }
-      }
+      console.error("Fare hold selection error:", error);
       
       toast({
-        title: "Fare Hold Error",
-        description: errorMessage,
+        title: "Error",
+        description: "Failed to add fare hold to cart. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -245,10 +209,10 @@ export default function FlightSelectionModal({
                   </div>
                   <Button
                     onClick={handleSelectWithFareHold}
-                    disabled={isProcessing || fareHoldMutation.isPending}
+                    disabled={isProcessing}
                     className="w-full airline-button-primary"
                   >
-                    {fareHoldMutation.isPending ? "Processing..." : "Add Fare Hold"}
+                    {isProcessing ? "Processing..." : "Add Fare Hold"}
                   </Button>
                 </div>
               </CardContent>
