@@ -28,8 +28,8 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const simulatePriceIncrease = useMutation({
     mutationFn: async () => {
       // Simulate a price increase by recording a booking
-      await apiRequest(`/api/pricing/flight/${flight.id}/record-booking`, "POST", { quantity: 3 });
-      return apiRequest(`/api/pricing/flight/${flight.id}`, "GET");
+      await apiRequest("POST", `/api/pricing/flight/${flight.id}/record-booking`, { quantity: 3 });
+      return apiRequest("GET", `/api/pricing/flight/${flight.id}`);
     },
     onSuccess: (data) => {
       if (data && typeof data === 'object' && 'currentPrice' in data) {
