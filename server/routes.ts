@@ -35,8 +35,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.paymentStatus = "pending";
       orderData.canCheckIn = false;
 
-      // Set 1-minute payment expiration window
-      const paymentExpiresAt = new Date(Date.now() + 60 * 1000); // 1 minute from now
+      // Set 15-minute payment expiration window
+      const paymentExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
       orderData.paymentExpiresAt = paymentExpiresAt;
 
       // Generate order number
@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Order is not pending payment" });
       }
 
-      // Check if payment window is still valid (1 minute from order expiration)
+      // Check if payment window is still valid (15 minutes from order expiration)
       if (order.paymentExpiresAt) {
         const currentTime = new Date();
         const expiresAt = new Date(order.paymentExpiresAt);
@@ -315,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           return res.status(400).json({ 
             error: "Payment window expired", 
-            message: "This order has expired. Payment must be completed within 1 minute of order creation. Please create a new booking."
+            message: "This order has expired. Payment must be completed within 15 minutes of order creation. Please create a new booking."
           });
         }
       }
@@ -411,7 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const orderCreatedAt = new Date(order.createdAt);
           const timeDifferenceInMinutes = (currentTime.getTime() - orderCreatedAt.getTime()) / (1000 * 60);
 
-          if (timeDifferenceInMinutes > 30) {
+          if (timeDifferenceInMinutes > 15) {
             await storage.updateOrder(order.id, { 
               status: "order_expired", 
               paymentStatus: "expired" 

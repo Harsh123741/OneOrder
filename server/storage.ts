@@ -646,7 +646,7 @@ export class DatabaseStorage implements IStorage {
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     const orderNumber = `SL${Date.now().toString().slice(-6)}`;
     
-    // Set payment expiration to 1 minute from now
+    // Set payment expiration to 15 minutes from now
     const paymentExpiresAt = new Date();
     paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 1);
     

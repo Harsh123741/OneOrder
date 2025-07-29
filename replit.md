@@ -261,9 +261,9 @@ The architecture supports a scalable, maintainable airline management system wit
   - **TREND INDICATORS**: Visual indicators showing price increases (red) and decreases (green) with proper icons
   - **NOTIFICATION MANAGEMENT**: Mark as read, mark all read, and clear all functionality for organized notification handling
   - **PERSISTENT STORAGE**: Notifications persist across sessions with proper date handling and serialization
-- **1-MINUTE PAYMENT WINDOW SYSTEM COMPLETION (January 2025)**:
+- **15-MINUTE PAYMENT WINDOW SYSTEM COMPLETION (January 2025)**:
   - **FIXED ORDER-CARD TIMER**: Updated order-card component to use paymentExpiresAt field instead of 30-minute calculation from creation
-  - **CONSISTENT 1-MINUTE MESSAGING**: Changed all timer text from "30 minutes" to "1 minute" across order cards and payment pages
-  - **UNIFIED TIMER LOGIC**: All countdown timers now use the same 1-minute payment expiration logic from database
-  - **AUTOMATIC ORDER EXPIRATION**: Orders expire exactly 1 minute after creation with inventory restoration
+  - **CONSISTENT 15-MINUTE MESSAGING**: Changed all timer text from "1 minute" to "15 minutes" across order cards and payment pages
+  - **UNIFIED TIMER LOGIC**: All countdown timers now use the same 15-minute payment expiration logic from database
+  - **AUTOMATIC ORDER EXPIRATION**: Orders expire exactly 15 minutes after creation with inventory restoration
   - **REAL-TIME TIMER UPDATES**: Payment countdown timers update every second showing minutes and seconds remaining

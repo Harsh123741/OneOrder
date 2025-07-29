@@ -341,7 +341,7 @@ export default function OrderCard({
               </p>
             </div>
             <p className="text-xs text-orange-700 mt-1">
-              Complete payment within 1 minute to secure your booking.
+              Complete payment within 15 minutes to secure your booking.
             </p>
           </div>
         )}
