@@ -42,84 +42,130 @@ export default function LoyaltyTierDisplay({
 }: LoyaltyTierDisplayProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [addingBundle, setAddingBundle] = useState<number | null>(null);
-  const { addItem } = useCart();
+  const { addItem, items, removeItem, updateItemDetails } = useCart();
   const { toast } = useToast();
 
   // Fetch all services to get service details
   const { data: services = [] } = useQuery({
     queryKey: ['/api/services'],
-  });
+  }) as { data: any[] };
 
   // Handle bundle selection and automatic cart addition
   const handleAddBundleToCart = async (bundle: any) => {
     setAddingBundle(bundle.id);
     
     try {
-      // Get services included in this bundle
-      const bundleServices = services.filter(service => 
-        bundle.serviceIds.includes(service.id)
-      );
+      if (bundle.isComplimentary) {
+        // For complimentary bundles, add all included services for FREE
+        const bundleServices = services.filter(service => 
+          bundle.serviceIds.includes(service.id)
+        );
 
-      if (bundleServices.length === 0) {
-        toast({
-          title: 'Bundle Error',
-          description: 'No services found for this bundle',
-          variant: 'destructive',
-        });
-        return;
-      }
+        if (bundleServices.length === 0) {
+          toast({
+            title: 'Bundle Error',
+            description: 'No services found for this bundle',
+            variant: 'destructive',
+          });
+          return;
+        }
 
-      // Add each service to cart with appropriate pricing
-      for (const service of bundleServices) {
-        let finalPrice = parseFloat(service.price);
-        let discountInfo = null;
-
-        if (bundle.isComplimentary) {
-          finalPrice = 0;
-          discountInfo = {
-            type: 'complimentary',
+        // Add each service to cart as complimentary
+        for (const service of bundleServices as any[]) {
+          const discountInfo = {
+            type: 'complimentary' as const,
             bundleName: bundle.bundleName,
             originalPrice: parseFloat(service.price),
             discount: parseFloat(service.price),
             description: 'Complimentary with your tier'
           };
-        } else if (bundle.discountPercentage && parseFloat(bundle.discountPercentage) > 0) {
-          const discountAmount = finalPrice * (parseFloat(bundle.discountPercentage) / 100);
-          finalPrice = finalPrice - discountAmount;
-          discountInfo = {
-            type: 'discount',
-            bundleName: bundle.bundleName,
-            originalPrice: parseFloat(service.price),
-            discount: discountAmount,
-            discountPercentage: parseFloat(bundle.discountPercentage),
-            description: `${bundle.discountPercentage}% ${bundle.bundleName} discount`
-          };
+
+          await addItem({
+            id: service.id,
+            type: 'service',
+            name: service.name,
+            description: service.description,
+            price: 0, // FREE for complimentary services
+            quantity: 1,
+            serviceId: service.id,
+            loyaltyBundle: {
+              bundleId: bundle.id,
+              bundleName: bundle.bundleName,
+              tierName: bundle.tierName,
+              isComplimentary: bundle.isComplimentary,
+              discountPercentage: bundle.discountPercentage,
+              discountInfo
+            }
+          });
         }
 
-        // Add service to cart with loyalty bundle information
-        await addItem({
-          id: service.id,
-          type: 'service',
-          name: service.name,
-          description: service.description,
-          price: finalPrice,
-          quantity: 1,
-          serviceId: service.id,
-          loyaltyBundle: {
-            bundleId: bundle.id,
-            bundleName: bundle.bundleName,
-            tierName: bundle.tierName,
-            isComplimentary: bundle.isComplimentary,
-            discountPercentage: bundle.discountPercentage,
-            discountInfo
-          }
+        toast({
+          title: 'Complimentary Bundle Added',
+          description: `${bundle.bundleName} services have been added to your cart for FREE`,
         });
-      }
+      } else {
+        // For discount bundles, only apply discount to eligible services already in cart
+        const eligibleCartItems = items.filter(item => 
+          item.type === 'service' && 
+          bundle.serviceIds.includes(item.serviceId) &&
+          !item.loyaltyBundle // Don't apply multiple discounts
+        );
 
-      toast({
-        title: 'Bundle Added to Cart',
-        description: `${bundle.bundleName} services have been added to your cart`,
-      });
+        if (eligibleCartItems.length === 0) {
+          // Get the service names for better user guidance
+          const eligibleServices = services.filter((service: any) => 
+            bundle.serviceIds.includes(service.id)
+          ).map((service: any) => service.name);
+          
+          toast({
+            title: 'No Eligible Services in Cart',
+            description: `Add ${eligibleServices.join(' or ')} to your cart first, then apply this discount`,
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Apply discount to eligible cart items
+        let discountApplied = false;
+        for (const cartItem of eligibleCartItems) {
+          const service = services.find((s: any) => s.id === cartItem.serviceId);
+          if (service) {
+            const originalPrice = parseFloat(service.price);
+            const discountAmount = originalPrice * (parseFloat(bundle.discountPercentage) / 100);
+            const finalPrice = originalPrice - discountAmount;
+
+            const discountInfo = {
+              type: 'discount' as const,
+              bundleName: bundle.bundleName,
+              originalPrice: originalPrice,
+              discount: discountAmount,
+              discountPercentage: parseFloat(bundle.discountPercentage),
+              description: `${bundle.discountPercentage}% ${bundle.bundleName} discount`
+            };
+
+            // Update the existing cart item with discount
+            await updateItemDetails(cartItem.id, {
+              price: finalPrice,
+              loyaltyBundle: {
+                bundleId: bundle.id,
+                bundleName: bundle.bundleName,
+                tierName: bundle.tierName,
+                isComplimentary: bundle.isComplimentary,
+                discountPercentage: bundle.discountPercentage,
+                discountInfo
+              }
+            });
+            discountApplied = true;
+          }
+        }
+
+        if (discountApplied) {
+          toast({
+            title: 'Discount Applied',
+            description: `${bundle.discountPercentage}% discount applied to eligible services in your cart`,
+          });
+        }
+      }
 
       // Toggle the bundle as selected
       onBundleToggle(bundle.id);
@@ -128,7 +174,7 @@ export default function LoyaltyTierDisplay({
       console.error('Error adding bundle to cart:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add bundle to cart',
+        description: 'Failed to apply bundle discount',
         variant: 'destructive',
       });
     } finally {
