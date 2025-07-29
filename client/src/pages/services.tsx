@@ -50,11 +50,39 @@ export default function Services() {
   });
 
   // Fetch personalized service recommendations
-  const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
+  const { data: recommendations, isLoading: recommendationsLoading, error: recommendationsError } = useQuery({
     queryKey: ["/api/services/recommendations", selectedFlight?.id, selectedFlight?.departureTime],
+    queryFn: async () => {
+      if (!selectedFlight?.id || !selectedFlight?.departureTime) {
+        throw new Error("Missing flight data");
+      }
+      
+      const token = localStorage.getItem('auth_token');
+
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const response = await fetch(`/api/services/recommendations?flightId=${selectedFlight.id}&departureTime=${encodeURIComponent(selectedFlight.departureTime)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      }
+      
+      return await response.json();
+    },
     enabled: isAuthenticated && !!selectedFlight && currentPhase === "booking",
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 2
   });
+
+  // Clean up any debug logging for production
 
   // Removed: Price change notifications now only shown in cart for cart items
 
@@ -122,12 +150,24 @@ export default function Services() {
 
   // Component for displaying recommended services
   const RecommendedServicesSection = () => {
-    if (!isAuthenticated || currentPhase !== "booking" || recommendationsLoading) {
+    if (!isAuthenticated || currentPhase !== "booking") {
       return null;
     }
 
+    if (recommendationsLoading) {
+      return (
+        <Card className="mb-8 border-0 shadow-xl bg-gradient-to-r from-amber-50 to-orange-50">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-gray-800">
+              Loading Recommendations...
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      );
+    }
+
     if (!recommendations?.recommendedServices?.length) {
-      return null;
+      return null; // Hide section if no recommendations available
     }
 
     return (
