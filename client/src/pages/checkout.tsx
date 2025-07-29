@@ -18,10 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
-import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit, ArrowLeft } from 'lucide-react';
+import { Plane, Users, CreditCard, MapPin, CalendarDays, FileText, Plus, UserCheck, Edit, ArrowLeft } from 'lucide-react';
 import LoyaltyTierDisplay from '@/components/loyalty-tier-display';
-import PriceChangeNotification from "@/components/price-change-notification";
-import { usePriceChangeNotifications } from "@/hooks/use-price-change-notifications";
+
 
 const passengerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -50,13 +49,13 @@ export default function Checkout() {
   const passengerCount = flight?.details?.passengerCount || 1;
 
   // Fetch saved passengers
-  const { data: savedPassengers = [] } = useQuery({
+  const { data: savedPassengers = [] }: { data: any[] } = useQuery({
     queryKey: ['/api/passengers'],
     enabled: !!user,
   });
 
   // Fetch user's loyalty status and available bundles
-  const { data: loyaltyStatus } = useQuery({
+  const { data: loyaltyStatus }: { data: any } = useQuery({
     queryKey: ['/api/loyalty/user', user?.id, 'status'],
     enabled: !!user,
   });
@@ -74,8 +73,7 @@ export default function Checkout() {
   // State for selected loyalty bundles
   const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
 
-  // Price change notifications for cart items
-  const { priceChanges, dismissNotifications, hasNewChanges } = usePriceChangeNotifications();
+
 
   // Handler for loyalty bundle toggling
   const handleBundleToggle = (bundleId: number) => {
@@ -592,13 +590,7 @@ export default function Checkout() {
           </DialogContent>
         </Dialog>
         
-        {/* Price Change Notifications for Cart Items */}
-        {hasNewChanges && (
-          <PriceChangeNotification 
-            changes={priceChanges} 
-            onDismiss={dismissNotifications} 
-          />
-        )}
+
       </div>
     </div>
   );

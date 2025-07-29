@@ -4,8 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { useCart } from "@/hooks/use-cart";
 import { Trash2, X, TrendingUp, TrendingDown } from "lucide-react";
 import { useLocation } from "wouter";
-import PriceChangeNotification from "@/components/price-change-notification";
-import { usePriceChangeNotifications } from "@/hooks/use-price-change-notifications";
+
 
 export default function CartSidebar() {
   const { 
@@ -19,8 +18,7 @@ export default function CartSidebar() {
   } = useCart();
   const [, setLocation] = useLocation();
   
-  // Price change notifications for cart items only
-  const { priceChanges, dismissNotifications, hasNewChanges } = usePriceChangeNotifications();
+
 
   const handleProceedToCheckout = () => {
     setCartOpen(false);
@@ -220,13 +218,7 @@ export default function CartSidebar() {
           )}
         </div>
         
-        {/* Price Change Notifications for Cart Items */}
-        {hasNewChanges && (
-          <PriceChangeNotification 
-            changes={priceChanges} 
-            onDismiss={dismissNotifications} 
-          />
-        )}
+
       </SheetContent>
     </Sheet>
   );
