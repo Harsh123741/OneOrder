@@ -142,7 +142,7 @@ export default function OrderDetails() {
 
   // Calculate remaining payment time for pending orders
   useEffect(() => {
-    if (order?.status === "pending_payment" && order?.createdAt) {
+    if ((order?.status === "pending_payment" || order?.status === "pending") && order?.createdAt) {
       const updateTimer = () => {
         const createdAt = new Date(order.createdAt);
         const currentTime = new Date();
@@ -397,8 +397,12 @@ export default function OrderDetails() {
         return <Badge className="bg-green-100 text-green-800">Confirmed</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case "pending_payment":
+        return <Badge className="bg-orange-100 text-orange-800">Pending Payment</Badge>;
       case "cancelled":
         return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>;
+      case "order_expired":
+        return <Badge className="bg-gray-100 text-gray-800">Order Expired</Badge>;
       case "completed":
         return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>;
       default:

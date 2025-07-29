@@ -169,10 +169,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const timeDifferenceInMinutes = (currentTime.getTime() - orderCreatedAt.getTime()) / (1000 * 60);
       
       if (timeDifferenceInMinutes > 30) {
-        // Cancel the expired order
+        // Mark the order as expired
         await storage.updateOrder(order.id, { 
-          status: "cancelled", 
-          paymentStatus: "cancelled" 
+          status: "order_expired", 
+          paymentStatus: "expired" 
         });
         return res.status(400).json({ 
           error: "Payment window expired", 
@@ -255,6 +255,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedOrder);
     } catch (error: any) {
       console.error("Error completing payment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Check and update expired orders endpoint
+  app.post("/api/orders/check-expired", authenticateToken, async (req: any, res) => {
+    try {
+      const userOrders = await storage.getUserOrders(req.user.userId);
+      const currentTime = new Date();
+      let updatedCount = 0;
+
+      for (const order of userOrders) {
+        if ((order.status === "pending" || order.status === "pending_payment") && order.paymentStatus === "pending") {
+          const orderCreatedAt = new Date(order.createdAt);
+          const timeDifferenceInMinutes = (currentTime.getTime() - orderCreatedAt.getTime()) / (1000 * 60);
+          
+          if (timeDifferenceInMinutes > 30) {
+            await storage.updateOrder(order.id, { 
+              status: "order_expired", 
+              paymentStatus: "expired" 
+            });
+            updatedCount++;
+          }
+        }
+      }
+
+      res.json({ 
+        message: `${updatedCount} orders updated to expired status`,
+        updatedCount 
+      });
+    } catch (error: any) {
+      console.error("Error checking expired orders:", error);
       res.status(500).json({ error: error.message });
     }
   });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,15 +8,31 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Package, Calendar, CheckCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function MyOrders() {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("all");
+  const queryClient = useQueryClient();
 
   const { data: orders = [], isLoading, error } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
     enabled: isAuthenticated && !!user?.id,
+  });
+
+  // Mutation to check for expired orders
+  const checkExpiredOrdersMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/orders/check-expired");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.updatedCount > 0) {
+        // Refresh orders to show updated status
+        queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
+      }
+    },
   });
 
   useEffect(() => {
@@ -24,6 +40,21 @@ export default function MyOrders() {
       setLocation("/login");
     }
   }, [isAuthenticated, setLocation]);
+
+  // Check for expired orders when component mounts
+  useEffect(() => {
+    if (isAuthenticated && user?.id && orders.length > 0) {
+      // Check if there are any pending orders that might be expired
+      const hasPendingOrders = orders.some((order: any) => 
+        (order.status === "pending" || order.status === "pending_payment") && 
+        order.paymentStatus === "pending"
+      );
+      
+      if (hasPendingOrders) {
+        checkExpiredOrdersMutation.mutate();
+      }
+    }
+  }, [isAuthenticated, user?.id, orders.length]);
 
   if (!isAuthenticated) {
     return null;
@@ -41,7 +72,7 @@ export default function MyOrders() {
         );
       case "cancelled":
         return orders.filter((order: any) => 
-          order.status === 'cancelled'
+          order.status === 'cancelled' || order.status === 'order_expired'
         );
       default:
         return orders;

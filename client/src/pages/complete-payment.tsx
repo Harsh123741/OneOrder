@@ -96,10 +96,10 @@ export default function CompletePayment() {
       if (timeInfo?.isExpired) {
         toast({
           title: "Payment Window Expired",
-          description: "This order has expired. Please create a new booking.",
+          description: "This order has expired and status updated to Order Expired. Please create a new booking.",
           variant: "destructive",
         });
-        setLocation("/");
+        setLocation("/my-orders");
       }
     }, 1000);
 

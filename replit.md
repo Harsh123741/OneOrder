@@ -225,3 +225,11 @@ The architecture supports a scalable, maintainable airline management system wit
   - **CART PRICING SYNCHRONIZATION**: Fixed cart to display dynamic pricing current prices instead of static flight prices
   - **DYNAMIC PRICING INTEGRATION**: Cart now correctly uses `flight.dynamicPricing.currentPrice` for accurate pricing display
   - **VERIFIED AUTHENTICATION**: Confirmed each user now has unique password hashes and can authenticate independently
+- **30-MINUTE PAYMENT WINDOW SYSTEM (January 2025)**:
+  - **SERVER-SIDE VALIDATION**: Orders automatically expire after 30 minutes with status changed to "order_expired"
+  - **REAL-TIME COUNTDOWN TIMER**: Payment pages show exact remaining time with live updates every second
+  - **CLIENT-SIDE AUTO-REDIRECT**: Users redirected when payment window expires with clear messaging
+  - **ORDER STATUS TRACKING**: New "order_expired" status with appropriate badge styling and filtering
+  - **AUTOMATIC ORDER CHECKING**: My Orders page automatically checks and updates expired orders on load
+  - **PAYMENT BUTTON STATES**: Complete Payment buttons disabled when window expires with clear status indication
+  - **ORDER SUCCESS REDIRECT**: Successful payments now redirect to order confirmation page instead of order details
