@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
-import { CartRefresh } from "@/components/cart/cart-refresh";
 import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
 import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw } from "lucide-react";
 
@@ -383,9 +382,6 @@ export default function Services() {
             </Tabs>
           </div>
         )}
-
-        {/* Cart refresh for real-time pricing updates */}
-        <CartRefresh enabled={true} interval={60000} />
 
         {/* Price change notifications now only shown in cart sidebar for cart items */}
 

@@ -65,12 +65,14 @@ function App() {
               <Footer />
               <CartSidebar />
               <CartSync />
-              <CartRefresh enabled={true} interval={60000} />
+              
             </div>
             <Toaster />
           </TooltipProvider>
         </WalletProvider>
       </AuthProvider>
+       {/* Global cart refresh for price updates */}
+       <CartRefresh enabled={true} interval={60000} />
     </QueryClientProvider>
   );
 }
