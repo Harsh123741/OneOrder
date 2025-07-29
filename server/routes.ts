@@ -446,6 +446,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Access denied" });
       }
 
+      // Fetch flight details if flightId exists
+      if (order.flightId) {
+        const flight = await storage.getFlight(order.flightId);
+        if (flight) {
+          order.flightDetails = {
+            airline: flight.airline,
+            flightNumber: flight.flightNumber,
+            departureAirport: flight.departureAirport,
+            arrivalAirport: flight.arrivalAirport,
+            departureTime: flight.departureTime,
+            arrivalTime: flight.arrivalTime,
+            duration: flight.duration,
+            aircraft: flight.aircraft,
+            class: 'economy' // Default class, could be stored in order if needed
+          };
+        }
+      }
+
       res.json(order);
     } catch (error: any) {
       console.error("Error fetching order:", error);
