@@ -287,93 +287,207 @@ export default function CompletePayment() {
                 </span>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="font-semibold">Flight Details</h4>
-                <div className="bg-gray-50 p-3 rounded-lg">
+              {/* Flight Details */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-gray-900">Flight Details</h4>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-100">
                   {typedOrder.flightDetails ? (
-                    <>
-                      <div className="text-sm text-gray-600">
-                        Flight:{" "}
-                        <span className="font-medium text-gray-900">
-                          {typedOrder.flightDetails.airline} {typedOrder.flightDetails.flightNumber}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Plane className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium text-gray-700">
+                            {typedOrder.flightDetails.airline} {typedOrder.flightDetails.flightNumber}
+                          </span>
+                        </div>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                          {typedOrder.flightDetails.aircraft || 'Commercial Flight'}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600">
-                        Route:{" "}
-                        <span className="font-medium text-gray-900">
-                          {typedOrder.flightDetails.departureAirport} → {typedOrder.flightDetails.arrivalAirport}
-                        </span>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">From</div>
+                          <div className="font-medium text-gray-900">{typedOrder.flightDetails.departureAirport}</div>
+                          <div className="text-sm text-gray-600">
+                            {new Date(typedOrder.flightDetails.departureTime).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </div>
+                          <div className="text-sm font-medium text-blue-600">
+                            {new Date(typedOrder.flightDetails.departureTime).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">To</div>
+                          <div className="font-medium text-gray-900">{typedOrder.flightDetails.arrivalAirport}</div>
+                          <div className="text-sm text-gray-600">
+                            {new Date(typedOrder.flightDetails.arrivalTime).toLocaleDateString('en-US', { 
+                              weekday: 'short', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })}
+                          </div>
+                          <div className="text-sm font-medium text-blue-600">
+                            {new Date(typedOrder.flightDetails.arrivalTime).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600">
-                        Date:{" "}
-                        <span className="font-medium text-gray-900">
-                          {new Date(typedOrder.flightDetails.departureTime).toLocaleDateString()}
-                        </span>
+                      
+                      <div className="flex items-center justify-between pt-2 border-t border-blue-200">
+                        <div className="text-sm text-gray-600">
+                          Duration: <span className="font-medium">{typedOrder.flightDetails.duration || 'N/A'}</span>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          Class: <span className="font-medium capitalize">
+                            {typedOrder.flightDetails.class?.replace('_', ' ') || 'Economy'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-600">
-                        Time:{" "}
-                        <span className="font-medium text-gray-900">
-                          {new Date(typedOrder.flightDetails.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(typedOrder.flightDetails.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Class:{" "}
-                        <span className="font-medium text-gray-900 capitalize">
-                          {typedOrder.flightDetails.class?.replace('_', ' ') || 'Economy'}
-                        </span>
-                      </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="text-sm text-gray-600">
-                      Flight details not available
+                    <div className="text-center py-4">
+                      <Plane className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <div className="text-sm text-gray-500">Flight details not available</div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {typedOrder.selectedServices &&
-                typedOrder.selectedServices.length > 0 && (
+              {/* Passenger Information */}
+              {typedOrder.passengerInfo && typedOrder.passengerInfo.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-900">Passenger Information</h4>
                   <div className="space-y-2">
-                    <h4 className="font-semibold">Selected Services</h4>
-                    <div className="space-y-1">
-                      {typedOrder.selectedServices.map(
-                        (service: any, index: number) => (
-                          <div
-                            key={index}
-                            className="flex justify-between text-sm"
-                          >
-                            <span>{service.name}</span>
-                            <span>${parseFloat(service.price).toFixed(2)}</span>
+                    {typedOrder.passengerInfo.map((passenger: any, index: number) => (
+                      <div key={index} className="bg-gray-50 p-3 rounded-lg border">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Users className="w-4 h-4 text-gray-600" />
+                            <span className="font-medium text-gray-900">
+                              {passenger.firstName} {passenger.lastName}
+                            </span>
                           </div>
-                        ),
-                      )}
+                          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                            Passenger {index + 1}
+                          </span>
+                        </div>
+                        {passenger.email && (
+                          <div className="text-sm text-gray-600 mt-1">{passenger.email}</div>
+                        )}
+                        {passenger.phone && (
+                          <div className="text-sm text-gray-600">{passenger.phone}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Services */}
+              {typedOrder.selectedServices && typedOrder.selectedServices.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-900">Selected Services</h4>
+                  <div className="space-y-2">
+                    {typedOrder.selectedServices.map((service: any, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">{service.name}</div>
+                          {service.description && (
+                            <div className="text-xs text-gray-600 mt-1">{service.description}</div>
+                          )}
+                          {service.passengerName && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              For: {service.passengerName}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium text-gray-900">
+                            ${parseFloat(service.price).toFixed(2)}
+                          </div>
+                          {service.phase && (
+                            <div className="text-xs text-gray-500 capitalize">
+                              {service.phase.replace('_', ' ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Flight Cost Breakdown */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-gray-900">Cost Breakdown</h4>
+                <div className="bg-gray-50 p-3 rounded-lg border space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Base Flight Cost ({passengerCount} passenger{passengerCount > 1 ? 's' : ''})</span>
+                    <span className="font-medium">
+                      ${((parseFloat(typedOrder.subtotal || "0") - 
+                          (typedOrder.selectedServices || []).reduce((sum: number, service: any) => 
+                            sum + parseFloat(service.price || "0"), 0))).toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  {typedOrder.selectedServices && typedOrder.selectedServices.length > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Additional Services</span>
+                      <span className="font-medium">
+                        ${typedOrder.selectedServices.reduce((sum: number, service: any) => 
+                          sum + parseFloat(service.price || "0"), 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="border-t border-gray-300 pt-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Subtotal</span>
+                      <span className="font-medium">${parseFloat(typedOrder.subtotal || "0").toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Taxes & Fees</span>
+                      <span className="font-medium">${parseFloat(typedOrder.taxes || "0").toFixed(2)}</span>
                     </div>
                   </div>
-                )}
+                </div>
+              </div>
 
-              <div className="pt-4 border-t space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>
-                    ${parseFloat(typedOrder.subtotal || "0").toFixed(2)}
+              {/* Final Total */}
+              <div className="pt-4 border-t-2 border-gray-200">
+                <div className="flex justify-between items-center">
+                  <span className="text-xl font-bold text-gray-900">Total Amount</span>
+                  <span className="text-2xl font-bold text-airline-blue">
+                    ${parseFloat(typedOrder.total).toFixed(2)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Taxes</span>
-                  <span>${parseFloat(typedOrder.taxes || "0").toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg text-airline-blue">
-                  <span>Total</span>
-                  <span>${parseFloat(typedOrder.total).toFixed(2)}</span>
+                <div className="text-sm text-gray-600 mt-1">
+                  Includes all taxes and fees
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  <strong>Important:</strong> Seats and services will be
-                  reserved only after successful payment completion.
+              {/* Order Status */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                  <span className="text-sm font-medium text-blue-900">Payment Pending</span>
+                </div>
+                <p className="text-sm text-blue-800 mt-1">
+                  Complete payment to confirm your booking and reserve seats.
                 </p>
               </div>
+
+
             </CardContent>
           </Card>
 
