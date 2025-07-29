@@ -33,12 +33,12 @@ export default function OrderCard({
 
   // Calculate remaining payment time for pending orders
   useEffect(() => {
-    if ((order.status === "pending_payment" || order.status === "pending") && order.createdAt) {
+    if ((order.status === "pending_payment" || order.status === "pending") && order.paymentExpiresAt) {
       const updateTimer = () => {
-        const createdAt = new Date(order.createdAt);
+        const expiresAt = new Date(order.paymentExpiresAt);
         const currentTime = new Date();
-        const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
-        const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+        const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
+        const remainingMinutes = remainingTime / (1000 * 60);
         
         setPaymentTimer({
           isExpired: remainingMinutes <= 0,
@@ -53,7 +53,7 @@ export default function OrderCard({
     } else {
       setPaymentTimer(null);
     }
-  }, [order.status, order.createdAt]);
+  }, [order.status, order.paymentExpiresAt]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -303,7 +303,7 @@ export default function OrderCard({
               </p>
             </div>
             <p className="text-xs text-orange-700 mt-1">
-              Complete payment within 30 minutes to secure your booking.
+              Complete payment within 1 minute to secure your booking.
             </p>
           </div>
         )}
