@@ -214,16 +214,29 @@ export default function Services() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.recommendedServices.map((service: any) => (
-              <div key={service.id} className="relative">
-                
-                <ServiceCardEnhanced
-                  service={service}
-                  phase={service.phase || "booking"}
-                />
-               
-              </div>
-            ))}
+            {recommendations.recommendedServices.map((service: any) => {
+              // Find the matching service from filteredServices to get current dynamic pricing
+              const dynamicService = filteredServices.find((fs: any) => fs.id === service.id);
+              const enrichedService = {
+                ...service,
+                // Override with current dynamic pricing data
+                ...(dynamicService && {
+                  price: dynamicService.price,
+                  dynamicPricing: dynamicService.dynamicPricing,
+                  basePrice: dynamicService.basePrice,
+                  inventory: dynamicService.inventory
+                })
+              };
+
+              return (
+                <div key={service.id} className="relative">
+                  <ServiceCardEnhanced
+                    service={enrichedService}
+                    phase={service.phase || "booking"}
+                  />
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
