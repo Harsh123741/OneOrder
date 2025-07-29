@@ -69,7 +69,7 @@ export default function OrderDetails() {
       const response = await apiRequest("DELETE", `/api/orders/${orderId}`);
       return response.json();
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({
         queryKey: ["/api/orders/user", user?.id],
@@ -78,11 +78,19 @@ export default function OrderDetails() {
       await refreshBalance(); // Update wallet balance immediately
       // Force a second refresh after a short delay to ensure balance is updated
       setTimeout(() => refreshBalance(), 500);
-      toast({
-        title: "Order Cancelled",
-        description:
-          "Your order has been cancelled and refund has been processed to your wallet.",
-      });
+      
+      // Show appropriate message based on refund details
+      if (data.refundDetails) {
+        toast({
+          title: "Order Cancelled",
+          description: `Refunded $${data.refundDetails.refundedAmount} to your wallet. Fare hold fees ($${data.refundDetails.fareHoldDeduction}) are non-refundable.`,
+        });
+      } else {
+        toast({
+          title: "Order Cancelled",
+          description: "Your order has been cancelled and full refund has been processed to your wallet.",
+        });
+      }
       setLocation("/my-orders");
     },
     onError: () => {
@@ -97,10 +105,16 @@ export default function OrderDetails() {
   const handleCancel = async () => {
     if (!order) return;
 
+    // Check if order contains fare hold services
+    const hasFareHold = checkForFareHoldServices(order);
+    
+    const description = hasFareHold 
+      ? "Are you sure you want to cancel this order? Please note: Fare hold protection fees are non-refundable. All other charges will be refunded to your wallet."
+      : "Are you sure you want to cancel this order? You will receive a full refund in your wallet.";
+
     const confirmed = await showConfirmation({
       title: "Cancel Order",
-      description:
-        "Are you sure you want to cancel this order? You will receive a full refund in your wallet.",
+      description,
       confirmText: "Yes, Cancel Order",
       cancelText: "Keep Order",
       variant: "destructive",
@@ -109,6 +123,36 @@ export default function OrderDetails() {
     if (confirmed) {
       cancelOrderMutation.mutate(order.id);
     }
+  };
+
+  // Helper function to check for fare hold services
+  const checkForFareHoldServices = (order: any) => {
+    // Check selectedServices
+    if (order.selectedServices && Array.isArray(order.selectedServices)) {
+      const hasFareHoldInSelected = order.selectedServices.some((service: any) => 
+        service.name?.includes("Fare Hold") || 
+        service.name === "24-Hour Fare Hold Protection" ||
+        service.details?.serviceType === "fare_protection"
+      );
+      if (hasFareHoldInSelected) return true;
+    }
+
+    // Check passenger-specific services
+    if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+      const hasFareHoldInPassengers = order.passengerInfo.some((passenger: any) => {
+        if (passenger.services && Array.isArray(passenger.services)) {
+          return passenger.services.some((service: any) => 
+            service.name?.includes("Fare Hold") || 
+            service.name === "24-Hour Fare Hold Protection" ||
+            service.details?.serviceType === "fare_protection"
+          );
+        }
+        return false;
+      });
+      if (hasFareHoldInPassengers) return true;
+    }
+
+    return false;
   };
 
   const [showAddServices, setShowAddServices] = useState(false);

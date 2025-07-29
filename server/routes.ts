@@ -1512,8 +1512,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Access denied" });
       }
 
+      // Calculate refund amount excluding non-refundable fare hold fees
+      let refundAmount = parseFloat(existingOrder.total);
+      let fareHoldDeduction = 0;
+
+      // Check for fare hold services in selectedServices
+      if (existingOrder.selectedServices && Array.isArray(existingOrder.selectedServices)) {
+        const fareHoldServices = existingOrder.selectedServices.filter((service: any) => 
+          service.name?.includes("Fare Hold") || 
+          service.name === "24-Hour Fare Hold Protection" ||
+          service.details?.serviceType === "fare_protection"
+        );
+
+        fareHoldDeduction = fareHoldServices.reduce((total: number, service: any) => {
+          return total + (parseFloat(service.price) * (service.quantity || 1));
+        }, 0);
+      }
+
+      // Check for fare hold services in passenger-specific services
+      if (existingOrder.passengerInfo && Array.isArray(existingOrder.passengerInfo)) {
+        existingOrder.passengerInfo.forEach((passenger: any) => {
+          if (passenger.services && Array.isArray(passenger.services)) {
+            const passengerFareHoldServices = passenger.services.filter((service: any) => 
+              service.name?.includes("Fare Hold") || 
+              service.name === "24-Hour Fare Hold Protection" ||
+              service.details?.serviceType === "fare_protection"
+            );
+
+            fareHoldDeduction += passengerFareHoldServices.reduce((total: number, service: any) => {
+              return total + (parseFloat(service.price) * (service.quantity || 1));
+            }, 0);
+          }
+        });
+      }
+
+      // Apply taxes to fare hold deduction (since original total included taxes)
+      fareHoldDeduction = fareHoldDeduction * 1.12; // Add 12% tax to match original pricing
+
+      // Final refund amount (total minus non-refundable fare hold fees)
+      const finalRefundAmount = Math.max(0, refundAmount - fareHoldDeduction);
+
       const cancelledOrder = await storage.cancelOrder(orderId);
-      res.json(cancelledOrder);
+
+      // Process partial refund if fare hold was involved
+      if (fareHoldDeduction > 0) {
+        // Add the partial refund to wallet (excludes fare hold fees)
+        await storage.addWalletTransaction(
+          req.user.userId, 
+          finalRefundAmount, 
+          'credit', 
+          `Partial refund for cancelled order ${existingOrder.orderNumber} (fare hold fees: $${fareHoldDeduction.toFixed(2)} non-refundable)`
+        );
+
+        res.json({
+          ...cancelledOrder,
+          refundDetails: {
+            originalAmount: refundAmount.toFixed(2),
+            fareHoldDeduction: fareHoldDeduction.toFixed(2),
+            refundedAmount: finalRefundAmount.toFixed(2),
+            message: "Fare hold protection fees are non-refundable"
+          }
+        });
+      } else {
+        // Full refund for orders without fare hold
+        res.json(cancelledOrder);
+      }
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
