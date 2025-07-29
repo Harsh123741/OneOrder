@@ -280,3 +280,9 @@ The architecture supports a scalable, maintainable airline management system wit
   - **ORDER EXPIRATION PRICING REVERSAL**: Added reverseBooking method to restore pricing when orders expire and inventory is released
   - **COMPREHENSIVE DEMAND TRACKING**: Both flights and services track booking demand and inventory changes at order creation time
   - **PRICING FLOW OPTIMIZATION**: Ensures pricing reflects actual inventory reservation state rather than payment completion state
+- **MY BOOKINGS AUTO-REFRESH SYSTEM (January 2025)**:
+  - **AUTOMATIC PAGE REFRESH**: Booking list automatically refreshes every time user navigates to My Orders page
+  - **REAL-TIME DATA FETCHING**: Enhanced query configuration with refetchOnMount and refetchOnWindowFocus for fresh data
+  - **MANUAL REFRESH BUTTON**: Added refresh button with loading indicator for user-controlled updates
+  - **STALE DATA PREVENTION**: Set staleTime to 0 to ensure data is always considered fresh and refetched
+  - **RESPONSIVE REFRESH UI**: Refresh button shows spinning animation during data loading

@@ -7,7 +7,7 @@ import OrderCard from "@/components/order/order-card";
 import { OrderCountdownCard } from "@/components/order-countdown-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Package, Calendar, CheckCircle, XCircle } from "lucide-react";
+import { Package, Calendar, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,9 +19,12 @@ export default function MyOrders() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: orders = [], isLoading, error } = useQuery<any[]>({
+  const { data: orders = [], isLoading, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
     enabled: isAuthenticated && !!user?.id,
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 0, // Consider data immediately stale to ensure fresh data
   });
 
   // Mutation to check for expired orders
@@ -43,6 +46,13 @@ export default function MyOrders() {
       setLocation("/login");
     }
   }, [isAuthenticated, setLocation]);
+
+  // Refresh orders every time user navigates to this page
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      refetch();
+    }
+  }, [isAuthenticated, user?.id, refetch]);
 
   // Handle order expiration callback
   const handleOrderExpired = (orderNumber: string) => {
@@ -115,9 +125,20 @@ export default function MyOrders() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
-          <p className="text-gray-600">Manage all your flight reservations and services</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
+            <p className="text-gray-600">Manage all your flight reservations and services</p>
+          </div>
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            className="flex items-center gap-2"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         {/* Summary Cards */}
