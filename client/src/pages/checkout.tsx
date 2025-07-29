@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
-import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit } from 'lucide-react';
+import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit, ArrowLeft } from 'lucide-react';
 import LoyaltyTierDisplay from '@/components/loyalty-tier-display';
 
 const passengerSchema = z.object({
@@ -99,6 +99,10 @@ export default function Checkout() {
       setSelectedPassengers(initialSelection);
     }
   }, [passengerCount]);
+
+  const handleBack = () => {
+    setLocation('/services');
+  };
 
   // Mutation to save new passenger
   const savePassengerMutation = useMutation({
@@ -261,6 +265,18 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
+        {/* Back Navigation */}
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Services
+          </Button>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Passenger Information</h1>
           <p className="text-gray-600">Please provide passenger details for your booking</p>
