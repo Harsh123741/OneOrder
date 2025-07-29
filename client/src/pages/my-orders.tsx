@@ -4,17 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OrderCard from "@/components/order/order-card";
+import { OrderCountdownCard } from "@/components/order-countdown-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { Package, Calendar, CheckCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MyOrders() {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("all");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: orders = [], isLoading, error } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
@@ -40,6 +43,18 @@ export default function MyOrders() {
       setLocation("/login");
     }
   }, [isAuthenticated, setLocation]);
+
+  // Handle order expiration callback
+  const handleOrderExpired = (orderNumber: string) => {
+    // Refresh orders to show updated status
+    queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
+    
+    toast({
+      title: "Payment Failed",
+      description: `Payment failed for order ${orderNumber}`,
+      variant: "destructive",
+    });
+  };
 
   // Check for expired orders when component mounts
   useEffect(() => {
@@ -207,7 +222,14 @@ export default function MyOrders() {
             {!error && filteredOrders.length > 0 && (
               <div className="space-y-6">
                 {filteredOrders.map((order: any) => (
-                  <OrderCard key={order.id} order={order} />
+                  <div key={order.id} className="space-y-3">
+                    {/* Order Countdown Timer for pending payment orders */}
+                    <OrderCountdownCard 
+                      order={order} 
+                      onOrderExpired={handleOrderExpired}
+                    />
+                    <OrderCard order={order} />
+                  </div>
                 ))}
               </div>
             )}

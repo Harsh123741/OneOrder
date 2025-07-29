@@ -35,9 +35,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.paymentStatus = "pending";
       orderData.canCheckIn = false;
 
+      // Set 1-minute payment expiration window
+      const paymentExpiresAt = new Date(Date.now() + 60 * 1000); // 1 minute from now
+      orderData.paymentExpiresAt = paymentExpiresAt;
+
       // Generate order number
       const orderNumber = 'SL' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
       orderData.orderNumber = orderNumber;
+
+      // Reserve inventory (seats and services)
+      const reservedInventory = {
+        seats: [],
+        services: []
+      };
+
+      // Reserve seats if any are selected
+      if (orderData.assignedSeats && Array.isArray(orderData.assignedSeats)) {
+        for (const seatAssignment of orderData.assignedSeats) {
+          if (seatAssignment.seatId) {
+            reservedInventory.seats.push({
+              seatId: seatAssignment.seatId,
+              passengerId: seatAssignment.passengerId,
+              reservedAt: new Date()
+            });
+            // Mark seat as temporarily unavailable
+            await storage.updateSeatAvailability(seatAssignment.seatId, false);
+          }
+        }
+      }
+
+      // Reserve services
+      if (orderData.selectedServices && Array.isArray(orderData.selectedServices)) {
+        for (const service of orderData.selectedServices) {
+          const quantity = service.quantity || 1;
+          reservedInventory.services.push({
+            serviceId: service.id,
+            quantity: quantity,
+            reservedAt: new Date()
+          });
+          // Temporarily reduce service inventory
+          await storage.reserveServiceInventory(service.id, quantity);
+        }
+      }
+
+      orderData.reservedInventory = reservedInventory;
 
       // Handle passenger-specific services from cart
       if (orderData.items && Array.isArray(orderData.items)) {
@@ -135,10 +176,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.total = total;
 
       const order = await storage.createOrder(orderData);
+      
+      // Clear the user's cart after creating the order
+      await storage.clearUserCart(req.user.userId);
+
+      // Set up automatic expiration check
+      setTimeout(async () => {
+        try {
+          await checkAndExpireOrder(order.orderNumber);
+        } catch (error) {
+          console.error('Error checking order expiration:', error);
+        }
+      }, 61 * 1000); // Check 1 second after expiration
+
       res.json(order);
     } catch (error: any) {
       console.error("Error creating draft order:", error);
       res.status(500).json({ error, message: error.message });
+    }
+  });
+
+  // Helper function to check and expire orders
+  async function checkAndExpireOrder(orderNumber: string) {
+    try {
+      const order = await storage.getOrderByNumber(orderNumber);
+      if (order && order.status === 'pending_payment' && order.paymentExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(order.paymentExpiresAt);
+        
+        if (now > expiresAt) {
+          // Order has expired, update status and restore inventory
+          await storage.updateOrderStatus(order.id, 'order_expired', 'failed');
+          
+          // Restore reserved inventory
+          if (order.reservedInventory) {
+            const reserved = order.reservedInventory as any;
+            
+            // Restore seat availability
+            if (reserved.seats && Array.isArray(reserved.seats)) {
+              for (const seat of reserved.seats) {
+                await storage.updateSeatAvailability(seat.seatId, true);
+              }
+            }
+            
+            // Restore service inventory
+            if (reserved.services && Array.isArray(reserved.services)) {
+              for (const service of reserved.services) {
+                await storage.restoreServiceInventory(service.serviceId, service.quantity);
+              }
+            }
+          }
+          
+          console.log(`Order ${orderNumber} expired and inventory restored`);
+        }
+      }
+    } catch (error) {
+      console.error('Error expiring order:', orderNumber, error);
+    }
+  }
+
+  // Endpoint to check order payment status
+  app.get("/api/orders/:orderNumber/payment-status", authenticateToken, async (req: any, res) => {
+    try {
+      const { orderNumber } = req.params;
+      const order = await storage.getOrderByNumber(orderNumber);
+      
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+      
+      if (order.userId !== req.user.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Check if order has expired
+      if (order.status === 'pending_payment' && order.paymentExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(order.paymentExpiresAt);
+        
+        if (now > expiresAt) {
+          // Expire the order if not already expired
+          await checkAndExpireOrder(orderNumber);
+          // Fetch updated order
+          const updatedOrder = await storage.getOrderByNumber(orderNumber);
+          return res.json({
+            status: updatedOrder?.status || 'order_expired',
+            paymentStatus: updatedOrder?.paymentStatus || 'failed',
+            expiresAt: order.paymentExpiresAt,
+            isExpired: true
+          });
+        }
+      }
+
+      res.json({
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        expiresAt: order.paymentExpiresAt,
+        isExpired: false,
+        timeRemaining: order.paymentExpiresAt ? Math.max(0, new Date(order.paymentExpiresAt).getTime() - Date.now()) : 0
+      });
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+      res.status(500).json({ message: 'Failed to check payment status' });
     }
   });
 

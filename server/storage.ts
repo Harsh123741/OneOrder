@@ -42,6 +42,8 @@ export interface IStorage {
   getServices(phase?: string): Promise<Service[]>;
   getService(id: number): Promise<Service | undefined>;
   updateServiceInventory(id: number, inventory: number): Promise<Service | undefined>;
+  reserveServiceInventory(id: number, quantity: number): Promise<Service | undefined>;
+  restoreServiceInventory(id: number, quantity: number): Promise<Service | undefined>;
   createService(service: InsertService): Promise<Service>;
   
   // Order methods
@@ -50,6 +52,7 @@ export interface IStorage {
   getUserOrders(userId: number): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: number, updates: Partial<Order>): Promise<Order | undefined>;
+  updateOrderStatus(id: number, status: string, paymentStatus: string): Promise<Order | undefined>;
   cancelOrder(id: number): Promise<Order | undefined>;
   removeServiceFromOrder(orderId: number, serviceId: number): Promise<Order | undefined>;
   addServiceToOrder(orderId: number, service: any): Promise<Order | undefined>;
@@ -583,6 +586,37 @@ export class DatabaseStorage implements IStorage {
     return service || undefined;
   }
 
+  async restoreServiceInventory(serviceId: number, quantity: number): Promise<void> {
+    try {
+      const service = await this.getService(serviceId);
+      if (service && service.inventory !== null) {
+        const newInventory = (service.inventory || 0) + quantity;
+        await this.updateServiceInventory(serviceId, newInventory);
+        console.log(`Restored service ${serviceId} inventory by ${quantity} to ${newInventory}`);
+      }
+    } catch (error) {
+      console.error('Error restoring service inventory:', error);
+    }
+  }
+
+  async reserveServiceInventory(id: number, quantity: number): Promise<Service | undefined> {
+    const service = await this.getService(id);
+    if (!service || service.inventory < quantity) {
+      throw new Error(`Insufficient inventory for service ${id}`);
+    }
+    
+    const newInventory = service.inventory - quantity;
+    return await this.updateServiceInventory(id, newInventory);
+  }
+
+  async restoreServiceInventory(id: number, quantity: number): Promise<Service | undefined> {
+    const service = await this.getService(id);
+    if (!service) return undefined;
+    
+    const newInventory = service.inventory + quantity;
+    return await this.updateServiceInventory(id, newInventory);
+  }
+
   async createService(insertService: InsertService): Promise<Service> {
     const [service] = await db
       .insert(services)
@@ -743,6 +777,18 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db
       .update(orders)
       .set(updates)
+      .where(eq(orders.id, id))
+      .returning();
+    return order || undefined;
+  }
+
+  async updateOrderStatus(id: number, status: string, paymentStatus: string): Promise<Order | undefined> {
+    const [order] = await db
+      .update(orders)
+      .set({ 
+        status, 
+        paymentStatus
+      })
       .where(eq(orders.id, id))
       .returning();
     return order || undefined;

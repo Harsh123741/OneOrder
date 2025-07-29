@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PaymentCountdownTimer } from "@/components/payment-countdown-timer";
 import { ArrowLeft, Lock, CreditCard, Wallet, Building2 } from "lucide-react";
 
 const paymentSchema = z.object({
@@ -48,6 +49,7 @@ export default function Payment() {
   const queryClient = useQueryClient();
   
   const [orderData, setOrderData] = useState<any>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
 
   const form = useForm<PaymentFormData>({
     resolver: zodResolver(paymentSchema),
@@ -70,15 +72,22 @@ export default function Payment() {
 
     // Get order data from localStorage or URL params
     const urlParams = new URLSearchParams(window.location.search);
-    const orderNumber = urlParams.get('orderNumber');
+    const orderNumberParam = urlParams.get('orderNumber');
     const storedOrder = localStorage.getItem('pendingOrder');
+    
+    if (orderNumberParam) {
+      setOrderNumber(orderNumberParam);
+    }
     
     if (storedOrder) {
       const order = JSON.parse(storedOrder);
       setOrderData(order);
-    } else if (orderNumber) {
+      if (order.orderNumber) {
+        setOrderNumber(order.orderNumber);
+      }
+    } else if (orderNumberParam) {
       // Fetch order by number if not in localStorage
-      fetchOrderData(orderNumber);
+      fetchOrderData(orderNumberParam);
     } else {
       toast({
         title: "No Order Found",
@@ -89,12 +98,20 @@ export default function Payment() {
     }
   }, [isAuthenticated, setLocation, toast]);
 
+  // Query to check payment status and get order expiration time
+  const { data: paymentStatus, refetch: refetchPaymentStatus } = useQuery({
+    queryKey: ['/api/orders', orderNumber, 'payment-status'],
+    enabled: !!orderNumber,
+    refetchInterval: 5000, // Check every 5 seconds
+  });
+
   const fetchOrderData = async (orderNumber: string) => {
     try {
       const response = await apiRequest('GET', `/api/orders/number/${orderNumber}`);
       if (response.ok) {
         const order = await response.json();
         setOrderData(order);
+        setOrderNumber(order.orderNumber);
       } else {
         throw new Error('Order not found');
       }
@@ -106,6 +123,18 @@ export default function Payment() {
       });
       setLocation("/flights");
     }
+  };
+
+  // Handle order expiration
+  const handleOrderExpired = () => {
+    // Refresh payment status to get updated order info
+    refetchPaymentStatus();
+    
+    toast({
+      title: "Payment Failed",
+      description: `Payment failed for order ${orderNumber}`,
+      variant: "destructive",
+    });
   };
 
   const completePaymentMutation = useMutation({
@@ -193,6 +222,17 @@ export default function Payment() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Details</h1>
           <p className="text-gray-600">Complete your booking payment</p>
         </div>
+
+        {/* Payment Countdown Timer */}
+        {orderData && paymentStatus && paymentStatus.expiresAt && !paymentStatus.isExpired && (
+          <div className="mb-6">
+            <PaymentCountdownTimer
+              expiresAt={paymentStatus.expiresAt}
+              orderNumber={orderData.orderNumber}
+              onExpired={handleOrderExpired}
+            />
+          </div>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
