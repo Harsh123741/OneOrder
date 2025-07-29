@@ -6,13 +6,33 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ArrowLeft, CreditCard, Wallet, DollarSign, Users, Plane } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  Wallet,
+  DollarSign,
+  Users,
+  Plane,
+} from "lucide-react";
 
 const paymentFormSchema = z.object({
   paymentMethod: z.string().min(1, "Payment method is required"),
@@ -48,33 +68,39 @@ export default function CompletePayment() {
 
   const completePaymentMutation = useMutation({
     mutationFn: async (paymentData: PaymentFormData) => {
-      const response = await apiRequest("POST", `/api/orders/${params?.orderNumber}/complete-payment`, {
-        paymentMethod: paymentData.paymentMethod,
-        paymentDetails: {
-          cardNumber: paymentData.cardNumber,
-          expiryDate: paymentData.expiryDate,
-          cvv: paymentData.cvv,
-          cardholderName: paymentData.cardholderName,
+      const response = await apiRequest(
+        "POST",
+        `/api/orders/${params?.orderNumber}/complete-payment`,
+        {
+          paymentMethod: paymentData.paymentMethod,
+          paymentDetails: {
+            cardNumber: paymentData.cardNumber,
+            expiryDate: paymentData.expiryDate,
+            cvv: paymentData.cvv,
+            cardholderName: paymentData.cardholderName,
+          },
         },
-      });
+      );
       return response.json();
     },
     onSuccess: (data) => {
       toast({
         title: "Payment Completed!",
-        description: "Your order has been confirmed and seats have been reserved.",
+        description:
+          "Your order has been confirmed and seats have been reserved.",
       });
-      
+
       // Invalidate order queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      
+
       // Redirect to order details
       setLocation(`/order-details/${data.orderNumber}`);
     },
     onError: (error: any) => {
       toast({
         title: "Payment Failed",
-        description: error.message || "There was an error processing your payment.",
+        description:
+          error.message || "There was an error processing your payment.",
         variant: "destructive",
       });
     },
@@ -108,7 +134,9 @@ export default function CompletePayment() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Order Not Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">
+            Order Not Found
+          </h1>
           <Button onClick={() => setLocation("/my-orders")}>
             View My Orders
           </Button>
@@ -125,7 +153,7 @@ export default function CompletePayment() {
     );
   }
 
-  if (!typedOrder || typedOrder.status !== "pending" || typedOrder.paymentStatus !== "pending") {
+  if (!typedOrder || typedOrder.paymentStatus !== "pending") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
@@ -133,10 +161,9 @@ export default function CompletePayment() {
             {!order ? "Order Not Found" : "Payment Already Completed"}
           </h1>
           <p className="text-gray-600 mb-4">
-            {!order 
+            {!order
               ? "The order you're looking for doesn't exist."
-              : "This order has already been paid for and confirmed."
-            }
+              : "This order has already been paid for and confirmed."}
           </p>
           <Button onClick={() => setLocation("/my-orders")}>
             View My Orders
@@ -146,7 +173,9 @@ export default function CompletePayment() {
     );
   }
 
-  const passengerCount = Array.isArray(typedOrder.passengerInfo) ? typedOrder.passengerInfo.length : 1;
+  const passengerCount = Array.isArray(typedOrder.passengerInfo)
+    ? typedOrder.passengerInfo.length
+    : 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -160,8 +189,12 @@ export default function CompletePayment() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </Button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Payment</h1>
-          <p className="text-gray-600">Complete your booking payment to confirm your order</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Complete Payment
+          </h1>
+          <p className="text-gray-600">
+            Complete your booking payment to confirm your order
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -178,7 +211,7 @@ export default function CompletePayment() {
                 <span className="text-sm text-gray-600">Order Number</span>
                 <span className="font-semibold">#{typedOrder.orderNumber}</span>
               </div>
-              
+
               <div className="flex justify-between items-center pb-2 border-b">
                 <span className="text-sm text-gray-600">Passengers</span>
                 <span className="font-semibold flex items-center">
@@ -191,32 +224,46 @@ export default function CompletePayment() {
                 <h4 className="font-semibold">Flight Details</h4>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <div className="text-sm text-gray-600">
-                    Flight: <span className="font-medium text-gray-900">{typedOrder.flightNumber}</span>
+                    Flight:{" "}
+                    <span className="font-medium text-gray-900">
+                      {typedOrder.flightNumber}
+                    </span>
                   </div>
                   <div className="text-sm text-gray-600">
-                    Route: <span className="font-medium text-gray-900">{typedOrder.route}</span>
+                    Route:{" "}
+                    <span className="font-medium text-gray-900">
+                      {typedOrder.route}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {typedOrder.selectedServices && typedOrder.selectedServices.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Selected Services</h4>
-                  <div className="space-y-1">
-                    {typedOrder.selectedServices.map((service: any, index: number) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span>{service.name}</span>
-                        <span>${parseFloat(service.price).toFixed(2)}</span>
-                      </div>
-                    ))}
+              {typedOrder.selectedServices &&
+                typedOrder.selectedServices.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold">Selected Services</h4>
+                    <div className="space-y-1">
+                      {typedOrder.selectedServices.map(
+                        (service: any, index: number) => (
+                          <div
+                            key={index}
+                            className="flex justify-between text-sm"
+                          >
+                            <span>{service.name}</span>
+                            <span>${parseFloat(service.price).toFixed(2)}</span>
+                          </div>
+                        ),
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               <div className="pt-4 border-t space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${parseFloat(typedOrder.subtotal || "0").toFixed(2)}</span>
+                  <span>
+                    ${parseFloat(typedOrder.subtotal || "0").toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Taxes</span>
@@ -230,7 +277,8 @@ export default function CompletePayment() {
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-sm text-yellow-800">
-                  <strong>Important:</strong> Seats and services will be reserved only after successful payment completion.
+                  <strong>Important:</strong> Seats and services will be
+                  reserved only after successful payment completion.
                 </p>
               </div>
             </CardContent>
@@ -246,14 +294,20 @@ export default function CompletePayment() {
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <form
+                  onSubmit={form.handleSubmit(onSubmit)}
+                  className="space-y-6"
+                >
                   <FormField
                     control={form.control}
                     name="paymentMethod"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Payment Method *</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select payment method" />
@@ -269,7 +323,8 @@ export default function CompletePayment() {
                             <SelectItem value="wallet">
                               <div className="flex items-center">
                                 <Wallet className="w-4 h-4 mr-2" />
-                                Wallet Balance (${user?.walletBalance || "0.00"})
+                                Wallet Balance (${user?.walletBalance || "0.00"}
+                                )
                               </div>
                             </SelectItem>
                             <SelectItem value="bank_transfer">
@@ -294,7 +349,10 @@ export default function CompletePayment() {
                           <FormItem>
                             <FormLabel>Card Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="1234 5678 9012 3456" {...field} />
+                              <Input
+                                placeholder="1234 5678 9012 3456"
+                                {...field}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
