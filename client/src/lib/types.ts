@@ -11,6 +11,21 @@ export interface CartItem {
   seatId?: number;
   passengerId?: number;
   details?: any;
+  loyaltyBundle?: {
+    bundleId: number;
+    bundleName: string;
+    tierName: string;
+    isComplimentary: boolean;
+    discountPercentage?: string;
+    discountInfo?: {
+      type: 'complimentary' | 'discount';
+      bundleName: string;
+      originalPrice: number;
+      discount: number;
+      discountPercentage?: number;
+      description: string;
+    };
+  };
 }
 
 export interface FlightSearchParams {
