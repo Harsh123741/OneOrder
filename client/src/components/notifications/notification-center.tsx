@@ -15,7 +15,7 @@ export interface PriceNotification {
   itemType: 'flight' | 'service';
   oldPrice: number;
   newPrice: number;
-  timestamp: Date;
+  timestamp: Date | string;
   isRead: boolean;
   trend: 'up' | 'down';
   fareHoldStatus?: 'protected' | 'live';
@@ -39,16 +39,17 @@ export function NotificationCenter({
 
   const formatPrice = (price: number) => `$${price.toFixed(2)}`;
   
-  const formatTimestamp = (timestamp: Date) => {
+  const formatTimestamp = (timestamp: Date | string) => {
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+    const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     
     if (minutes < 1) return 'Just now';
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
-    return timestamp.toLocaleDateString();
+    return date.toLocaleDateString();
   };
 
   const handleNotificationClick = (notification: PriceNotification) => {

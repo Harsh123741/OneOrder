@@ -2,6 +2,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { PriceNotification } from '@/components/notifications/notification-center';
 
+// Helper to ensure dates are properly handled in persistence
+const serializeNotification = (notification: PriceNotification): PriceNotification => ({
+  ...notification,
+  timestamp: notification.timestamp instanceof Date ? notification.timestamp.toISOString() : notification.timestamp
+});
+
+const deserializeNotification = (notification: PriceNotification): PriceNotification => ({
+  ...notification,
+  timestamp: typeof notification.timestamp === 'string' ? new Date(notification.timestamp) : notification.timestamp
+});
+
 interface NotificationState {
   notifications: PriceNotification[];
   addNotification: (notification: Omit<PriceNotification, 'id' | 'timestamp' | 'isRead'>) => void;
