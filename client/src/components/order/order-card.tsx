@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 interface OrderCardProps {
   order: any;
-  onViewDetails?: (order: any) => void; 
+  onViewDetails?: (order: any) => void;
   onCheckIn?: (order: any) => void;
   onModify?: (order: any) => void;
   onCancel?: (order: any) => void;
@@ -86,9 +86,11 @@ export default function OrderCard({
   const safeFlightInfo = {
     flightNumber: flight?.flightNumber || order.flightNumber || "N/A",
     airline: flight?.airline || order.airline || "N/A",
-    departureAirport: flight?.departureAirport || order.departureAirport || "N/A",
-    arrivalAirport: flight?.arrivalAirport || order.arrivalAirport || "N/A", 
-    departureTime: flight?.departureTime || order.departureTime || new Date().toISOString(),
+    departureAirport:
+      flight?.departureAirport || order.departureAirport || "N/A",
+    arrivalAirport: flight?.arrivalAirport || order.arrivalAirport || "N/A",
+    departureTime:
+      flight?.departureTime || order.departureTime || new Date().toISOString(),
     duration: flight?.duration || order.duration || "N/A",
   };
 
@@ -143,18 +145,19 @@ export default function OrderCard({
               <span className="text-sm text-gray-600">Passenger</span>
             </div>
             <p className="font-medium text-gray-900">
-              {Array.isArray(order.passengerInfo) 
-                ? `${order.passengerInfo[0]?.firstName} ${order.passengerInfo[0]?.lastName}${order.passengerInfo.length > 1 ? ` +${order.passengerInfo.length - 1} more` : ''}`
-                : `${order.passengerInfo?.firstName || ''} ${order.passengerInfo?.lastName || ''}`
-              }
+              {Array.isArray(order.passengerInfo)
+                ? `${order.passengerInfo[0]?.firstName} ${order.passengerInfo[0]?.lastName}${order.passengerInfo.length > 1 ? ` +${order.passengerInfo.length - 1} more` : ""}`
+                : `${order.passengerInfo?.firstName || ""} ${order.passengerInfo?.lastName || ""}`}
             </p>
             <p className="text-sm text-gray-600">
-              {order.assignedSeats && Array.isArray(order.assignedSeats) && order.assignedSeats.length > 0
-                ? `Seats ${order.assignedSeats.map((seat: any) => seat.seatNumber).join(', ')}`
-                : order.seatId 
-                  ? `Seat ${order.assignedSeats?.[0]?.seatNumber || 'Assigned'}`
-                  : "Seat not selected"
-              } • Economy
+              {order.assignedSeats &&
+              Array.isArray(order.assignedSeats) &&
+              order.assignedSeats.length > 0
+                ? `Seats ${order.assignedSeats.map((seat: any) => seat.seatNumber).join(", ")}`
+                : order.seatId
+                  ? `Seat ${order.assignedSeats?.[0]?.seatNumber || "Assigned"}`
+                  : "Seat not selected"}{" "}
+              • Economy
             </p>
           </div>
 
@@ -182,19 +185,28 @@ export default function OrderCard({
             {(() => {
               const allServices: string[] = [];
               if (order.selectedServices?.length) {
-                allServices.push(...order.selectedServices.map((s: any) => s.name));
+                allServices.push(
+                  ...order.selectedServices.map((s: any) => s.name),
+                );
               }
               if (Array.isArray(order.passengerInfo)) {
                 order.passengerInfo.forEach((passenger: any) => {
                   if (passenger.services?.length) {
-                    allServices.push(...passenger.services.map((s: any) => s.name));
+                    allServices.push(
+                      ...passenger.services.map((s: any) => s.name),
+                    );
                   }
                 });
               }
-              return allServices.length > 0 && (
-                <p className="text-xs text-gray-500">
-                  {allServices.slice(0, 2).join(', ')}{allServices.length > 2 ? ` +${allServices.length - 2} more` : ''}
-                </p>
+              return (
+                allServices.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {allServices.slice(0, 2).join(", ")}
+                    {allServices.length > 2
+                      ? ` +${allServices.length - 2} more`
+                      : ""}
+                  </p>
+                )
               );
             })()}
           </div>
@@ -223,11 +235,13 @@ export default function OrderCard({
             </>
           )}
 
-          {order.status === "pending" && (
+          {order.paymentStatus === "pending" && (
             <>
               <Button
-                onClick={() => setLocation(`/complete-payment/${order.orderNumber}`)}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() =>
+                  setLocation(`/complete-payment/${order.orderNumber}`)
+                }
+                className="border border-green-600 bg-white text-green-600 hover:bg-green-50"
               >
                 Complete Payment
               </Button>
