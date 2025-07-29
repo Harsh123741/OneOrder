@@ -258,7 +258,7 @@ export default function CompletePayment() {
                 </p>
               </div>
               <p className="text-orange-700 text-sm mt-1">
-                Complete payment within 30 minutes of order creation to secure your booking.
+                Complete payment within 15 minutes of order creation to secure your booking.
               </p>
             </div>
           )}
