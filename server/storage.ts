@@ -646,14 +646,19 @@ export class DatabaseStorage implements IStorage {
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     const orderNumber = `SL${Date.now().toString().slice(-6)}`;
     
+    // Set payment expiration to 1 minute from now
+    const paymentExpiresAt = new Date();
+    paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 1);
+    
     // Create order with pending status - do NOT reserve seats/services yet
     const [order] = await db
       .insert(orders)
       .values({
         ...insertOrder,
         orderNumber,
-        status: "pending",
+        status: "pending_payment",
         paymentStatus: "pending",
+        paymentExpiresAt,
         assignedSeats: [], // Empty until payment is completed
       })
       .returning();
