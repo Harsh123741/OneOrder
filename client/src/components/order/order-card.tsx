@@ -7,10 +7,11 @@ import { useQuery } from "@tanstack/react-query";
 
 interface OrderCardProps {
   order: any;
-  onViewDetails?: (order: any) => void;
+  onViewDetails?: (order: any) => void; 
   onCheckIn?: (order: any) => void;
   onModify?: (order: any) => void;
   onCancel?: (order: any) => void;
+  setLocation?: (location: string) => void;
 }
 
 export default function OrderCard({
@@ -82,13 +83,13 @@ export default function OrderCard({
   });
 
   // Get flight information - use flight data if available, otherwise use order details
-  const flightInfo = flight || {
-    flightNumber: order.flightNumber || "N/A",
-    airline: order.airline || "N/A",
-    departureAirport: order.departureAirport || "N/A", 
-    arrivalAirport: order.arrivalAirport || "N/A",
-    departureTime: order.departureTime || new Date().toISOString(),
-    duration: order.duration || "N/A",
+  const safeFlightInfo = {
+    flightNumber: flight?.flightNumber || order.flightNumber || "N/A",
+    airline: flight?.airline || order.airline || "N/A",
+    departureAirport: flight?.departureAirport || order.departureAirport || "N/A",
+    arrivalAirport: flight?.arrivalAirport || order.arrivalAirport || "N/A", 
+    departureTime: flight?.departureTime || order.departureTime || new Date().toISOString(),
+    duration: flight?.duration || order.duration || "N/A",
   };
 
   return (
@@ -123,16 +124,16 @@ export default function OrderCard({
             <div className="flex items-center space-x-2 mb-2">
               <Plane className="h-4 w-4 text-airline-blue" />
               <span className="font-medium text-gray-900">
-                {flightInfo.departureAirport} →{" "}
-                {flightInfo.arrivalAirport}
+                {safeFlightInfo.departureAirport} →{" "}
+                {safeFlightInfo.arrivalAirport}
               </span>
             </div>
             <p className="text-sm text-gray-600">
-              {formatDate(flightInfo.departureTime)} •{" "}
-              {formatTime(flightInfo.departureTime)}
+              {formatDate(safeFlightInfo.departureTime)} •{" "}
+              {formatTime(safeFlightInfo.departureTime)}
             </p>
             <p className="text-sm text-gray-600">
-              {flightInfo.airline} {flightInfo.flightNumber}
+              {safeFlightInfo.airline} {safeFlightInfo.flightNumber}
             </p>
           </div>
 

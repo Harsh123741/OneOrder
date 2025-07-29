@@ -14,7 +14,7 @@ export default function MyOrders() {
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("all");
 
-  const { data: orders = [], isLoading, error } = useQuery({
+  const { data: orders = [], isLoading, error } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
     enabled: isAuthenticated && !!user?.id,
   });
@@ -176,7 +176,7 @@ export default function MyOrders() {
             {!error && filteredOrders.length > 0 && (
               <div className="space-y-6">
                 {filteredOrders.map((order: any) => (
-                  <OrderCard key={order.id} order={order} setLocation={setLocation} />
+                  <OrderCard key={order.id} order={order} />
                 ))}
               </div>
             )}
@@ -234,49 +234,3 @@ export default function MyOrders() {
     </div>
   );
 }
-```
-
-```
-<replit_final_file>
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CalendarDays, CreditCard, MapPin } from "lucide-react";
-
-interface OrderCardProps {
-  order: any;
-  setLocation: any;
-}
-
-const OrderCard = ({ order, setLocation }: OrderCardProps) => {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Order #{order.orderNumber}</CardTitle>
-        <CardDescription>
-          {new Date(order.createdAt).toLocaleDateString()}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 opacity-70" />
-          {order.departure} to {order.destination}
-        </div>
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 opacity-70" />
-          {new Date(order.flightDate).toLocaleDateString()}
-        </div>
-        <div className="flex items-center gap-2">
-          <CreditCard className="h-4 w-4 opacity-70" />
-          Total: ${order.total}
-        </div>
-
-        <div className="flex gap-2">
-          {order.status === 'confirmed' && (
-            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-              Confirmed
-            </Badge>
-          )}
-          {order.status === 'completed' && (
-            <Badge variant="outline```typescript
-// Added the Complete Payment button to the order card for pending payments.
