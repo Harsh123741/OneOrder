@@ -46,8 +46,13 @@ export default function LoyaltyTierDisplay({
   const { currentTier, loyaltyPoints, totalMilesFlown, totalSpent, eligibility } = loyaltyStatus;
   const tierColor = tierColors[currentTier.tierName] || '#CD7F32';
 
-  const complimentaryBundles = loyaltyBundles.filter(bundle => bundle.isComplimentary);
-  const discountedBundles = loyaltyBundles.filter(bundle => !bundle.isComplimentary);
+  // Filter bundles to ensure only current tier bundles are shown
+  const currentTierBundles = loyaltyBundles.filter(bundle => 
+    bundle.tierName === currentTier.tierName.toLowerCase()
+  );
+
+  const complimentaryBundles = currentTierBundles.filter(bundle => bundle.isComplimentary);
+  const discountedBundles = currentTierBundles.filter(bundle => !bundle.isComplimentary);
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -133,7 +138,7 @@ export default function LoyaltyTierDisplay({
       </Card>
 
       {/* Loyalty Bundles */}
-      {loyaltyBundles.length > 0 && (
+      {currentTierBundles.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

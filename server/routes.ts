@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.total = total;
 
       const order = await storage.createOrder(orderData);
-      
+
       // Clear the user's cart after creating the order
       await storage.clearUserCart(req.user.userId);
 
@@ -241,22 +241,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (order && order.status === 'pending_payment' && order.paymentExpiresAt) {
         const now = new Date();
         const expiresAt = new Date(order.paymentExpiresAt);
-        
+
         if (now > expiresAt) {
           // Order has expired, update status and restore inventory
           await storage.updateOrderStatus(order.id, 'order_expired', 'failed');
-          
+
           // Restore reserved inventory
           if (order.reservedInventory) {
             const reserved = order.reservedInventory as any;
-            
+
             // Restore seat availability
             if (reserved.seats && Array.isArray(reserved.seats)) {
               for (const seat of reserved.seats) {
                 await storage.updateSeatAvailability(seat.seatId, true);
               }
             }
-            
+
             // Restore service inventory
             if (reserved.services && Array.isArray(reserved.services)) {
               for (const service of reserved.services) {
@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Don't fail the expiration if pricing reversal fails
             }
           }
-          
+
           console.log(`Order ${orderNumber} expired and inventory restored`);
         }
       }
@@ -316,11 +316,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderNumber } = req.params;
       const order = await storage.getOrderByNumber(orderNumber);
-      
+
       if (!order) {
         return res.status(404).json({ message: 'Order not found' });
       }
-      
+
       if (order.userId !== req.user.userId) {
         return res.status(403).json({ message: 'Access denied' });
       }
@@ -329,7 +329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (order.status === 'pending_payment' && order.paymentExpiresAt) {
         const now = new Date();
         const expiresAt = new Date(order.paymentExpiresAt);
-        
+
         if (now > expiresAt) {
           // Expire the order if not already expired
           await checkAndExpireOrder(orderNumber);
@@ -817,13 +817,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.userId;
       const { flightId, departureTime } = req.query;
-      
+
       // Get user's order history
       const userOrders = await storage.getUserOrders(userId);
-      
+
       // Analyze service frequency from order history
       const serviceFrequency: {[key: string]: number} = {};
-      
+
       userOrders.forEach((order: any) => {
         // Count services from selectedServices array
         if (order.selectedServices && Array.isArray(order.selectedServices)) {
@@ -833,7 +833,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
         }
-        
+
         // Count services from passenger-specific services
         if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
           order.passengerInfo.forEach((passenger: any) => {
@@ -847,15 +847,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       });
-      
+
       // Get all available services for booking phase
       const allServices = await storage.getServices('booking');
-      
+
       // Generate context-based recommendations
       const contextRecommendations = [];
       const flightTime = departureTime ? new Date(departureTime) : new Date();
       const flightHour = flightTime.getHours();
-      
+
       // Time-based recommendations
       if (flightHour < 6 || flightHour > 22) {
         // Early morning or late night flights
@@ -879,24 +879,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Travel Insurance'
         );
       }
-      
+
       // Always recommend commonly useful services
       contextRecommendations.push(
         'Extra Baggage',
         'Travel Insurance',
         'Priority Boarding'
       );
-      
+
       // Combine frequency-based and context-based recommendations
       const frequentServices = Object.entries(serviceFrequency)
         .sort(([,a], [,b]) => b - a)
         .slice(0, 5)
         .map(([name]) => name);
-      
+
       const recommendedServiceNames = [
         ...new Set([...frequentServices, ...contextRecommendations])
       ].slice(0, 6);
-      
+
       // Get the actual service objects with dynamic pricing
       const recommendedServices = await Promise.all(
         allServices
@@ -939,12 +939,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           })
       );
-      
+
       // Add recommendation reasons
       const servicesWithReasons = recommendedServices.map(service => {
         let reason = 'Popular choice';
         const frequency = serviceFrequency[service.name] || 0;
-        
+
         if (frequency > 0) {
           reason = `You've selected this ${frequency} time${frequency > 1 ? 's' : ''} before`;
         } else if (contextRecommendations.includes(service.name)) {
@@ -956,20 +956,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             reason = 'Ideal for evening flights';
           }
         }
-        
+
         return {
           ...service,
           recommendationReason: reason,
           userFrequency: frequency
         };
       });
-      
+
       res.json({
         recommendedServices: servicesWithReasons,
         userOrderCount: userOrders.length,
         topServices: frequentServices
       });
-      
+
     } catch (error: any) {
       console.error("Error generating service recommendations:", error);
       res.status(500).json({ error: error.message });
@@ -1775,8 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(400).json({ 
               message: "Insufficient wallet balance for seat upgrades",
               required: totalCost.toFixed(2),
-              upgrades: upgradeDetails
-            });
+              upgrades: upgradeDetails            });
           }
         }
       } else if (seatId) {
@@ -1987,9 +1986,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { tierName } = req.params;
       const { phase } = req.query;
 
-      const bundles = await storage.getLoyaltyBundles(tierName, phase as string);
-      res.json(bundles);
+      // Validate tier name
+      const validTiers = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
+      if (!validTiers.includes(tierName.toLowerCase())) {
+        return res.status(400).json({ message: "Invalid tier name" });
+      }
+
+      const bundles = await storage.getLoyaltyBundles(tierName.toLowerCase(), phase as string);
+
+      // Log for debugging
+      console.log(`Fetching loyalty bundles for tier: ${tierName}, phase: ${phase}, found: ${bundles.length} bundles`);
+
+      // Double-check filtering on server side
+      const filteredBundles = bundles.filter(bundle => bundle.tierName === tierName.toLowerCase());
+
+      if (filteredBundles.length !== bundles.length) {
+        console.warn(`Bundle filtering mismatch: Expected ${bundles.length}, got ${filteredBundles.length} for tier ${tierName}`);
+      }
+
+      res.json(filteredBundles);
     } catch (error) {
+      console.error("Error fetching loyalty bundles:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -2093,13 +2110,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const eligibility = await storage.calculateTierEligibility(userId);
-      
+
       if (!eligibility.qualified) {
         return res.status(400).json({ error: 'User does not qualify for tier upgrade' });
       }
 
       await storage.upgradeUserTier(userId, eligibility.suggestedTier);
-      
+
       res.json({ 
         success: true, 
         newTier: eligibility.suggestedTier,

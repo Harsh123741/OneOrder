@@ -1006,14 +1006,21 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(loyaltyBundles).where(eq(loyaltyBundles.isActive, true));
     
     if (tierName) {
-      query = query.where(eq(loyaltyBundles.tierName, tierName));
+      query = query.where(eq(loyaltyBundles.tierName, tierName.toLowerCase()));
     }
     
     if (phase) {
       query = query.where(eq(loyaltyBundles.phase, phase));
     }
     
-    return await query;
+    const result = await query;
+    
+    // Additional filtering to ensure exact tier match
+    if (tierName) {
+      return result.filter(bundle => bundle.tierName === tierName.toLowerCase());
+    }
+    
+    return result;
   }
 
   async createLoyaltyBundle(insertBundle: InsertLoyaltyBundle): Promise<LoyaltyBundle> {

@@ -28,15 +28,15 @@ export default function Services() {
       const storedFlight = sessionStorage.getItem("selectedFlight");
       const storedSeat = sessionStorage.getItem("selectedSeat");
       const storedSearch = sessionStorage.getItem("flightSearch");
-      
+
       if (storedFlight) {
         setSelectedFlight(JSON.parse(storedFlight));
       }
-      
+
       if (storedSeat) {
         setSelectedSeat(JSON.parse(storedSeat));
       }
-      
+
       if (storedSearch) {
         const searchData = JSON.parse(storedSearch);
         setPassengerCount(searchData.passengers || 1);
@@ -58,7 +58,7 @@ export default function Services() {
       if (!selectedFlight?.id || !selectedFlight?.departureTime) {
         throw new Error("Missing flight data");
       }
-      
+
       const token = localStorage.getItem('auth_token');
 
       if (!token) {
@@ -71,12 +71,12 @@ export default function Services() {
           'Content-Type': 'application/json'
         }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
-      
+
       return await response.json();
     },
     enabled: isAuthenticated && !!selectedFlight && currentPhase === "booking",
@@ -91,11 +91,17 @@ export default function Services() {
   });
 
   const { data: loyaltyBundles = [] }: { data: any[] } = useQuery({
-    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName],
+    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName, 'booking'],
     queryFn: async () => {
       if (!loyaltyStatus?.currentTier?.tierName) return [];
       const response = await fetch(`/api/loyalty/bundles/${loyaltyStatus.currentTier.tierName}?phase=booking`);
-      return response.json();
+      if (!response.ok) {
+        console.error('Failed to fetch loyalty bundles:', response.status);
+        return [];
+      }
+      const bundles = await response.json();
+      console.log(`Fetched ${bundles.length} bundles for ${loyaltyStatus.currentTier.tierName} tier:`, bundles);
+      return bundles;
     },
     enabled: !!loyaltyStatus?.currentTier?.tierName,
   });
@@ -119,7 +125,7 @@ export default function Services() {
       const recommendation = recommendations.recommendedServices.find(
         (rec: any) => rec.id === service.id
       );
-      
+
       if (recommendation) {
         return {
           ...service,
@@ -127,7 +133,7 @@ export default function Services() {
           userFrequency: recommendation.userFrequency
         };
       }
-      
+
       return service;
     });
   };
@@ -316,9 +322,9 @@ export default function Services() {
                 </div>
                 <span className="text-sm font-medium text-green-600 hidden md:block">Flight Selected</span>
               </div>
-              
+
               <div className="w-8 h-0.5 bg-gray-300"></div>
-              
+
               {/* Add Services */}
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center text-white text-sm font-semibold">
@@ -326,9 +332,9 @@ export default function Services() {
                 </div>
                 <span className="text-sm font-medium text-airline-blue hidden md:block">Add Services</span>
               </div>
-              
+
               <div className="w-8 h-0.5 bg-gray-300"></div>
-              
+
               {/* Payment */}
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-sm font-semibold">
@@ -443,7 +449,7 @@ export default function Services() {
                 Services selected here will be specifically assigned to this passenger.
               </p>
             </div>
-              
+
             {/* Service Phase Tabs */}
             <Tabs value={currentPhase} onValueChange={setCurrentPhase} className="w-full">
               <TabsList className="grid w-full grid-cols-4 mb-8">
