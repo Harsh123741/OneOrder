@@ -35,12 +35,31 @@ export default function OrderCard({
 
   // Mutation to update order status when payment expires
   const expireOrderMutation = useMutation({
-    mutationFn: () => apiRequest('/api/orders/check-expired', 'POST'),
+    mutationFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/orders/check-expired', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to check expired orders');
+      }
+      
+      return response.json();
+    },
     onSuccess: () => {
       // Invalidate orders query to refresh the order list
       queryClient.invalidateQueries({ queryKey: ['/api/orders/user'] });
     }
   });
+
+  // Track if we've already triggered expiration for this order
+  const [hasTriggeredExpiration, setHasTriggeredExpiration] = useState(false);
 
   // Calculate remaining payment time for pending orders
   useEffect(() => {
@@ -58,8 +77,9 @@ export default function OrderCard({
           remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
         });
 
-        // If timer just expired, trigger order expiration check
-        if (isExpired && !expireOrderMutation.isPending) {
+        // If timer just expired and we haven't triggered expiration yet
+        if (isExpired && !hasTriggeredExpiration && !expireOrderMutation.isPending) {
+          setHasTriggeredExpiration(true);
           expireOrderMutation.mutate();
         }
       };
@@ -69,8 +89,9 @@ export default function OrderCard({
       return () => clearInterval(interval);
     } else {
       setPaymentTimer(null);
+      setHasTriggeredExpiration(false);
     }
-  }, [order.status, order.paymentExpiresAt, expireOrderMutation]);
+  }, [order.status, order.paymentExpiresAt, hasTriggeredExpiration, expireOrderMutation.isPending]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
