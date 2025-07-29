@@ -120,6 +120,63 @@ export default function CartSidebar() {
                       )}
                     </div>
                   )}
+
+                  {/* Dynamic Pricing Display for Flights */}
+                  {item.type === 'flight' && item.details?.dynamicPricing && (
+                    <div className="space-y-2">
+                      {/* Fare Hold Status */}
+                      {item.details.dynamicPricing.isLocked ? (
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                          🔒 Fare Protected
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          📈 Live Pricing
+                        </Badge>
+                      )}
+                      
+                      {/* Price Display with Cross-out (only if not locked) */}
+                      {!item.details.dynamicPricing.isLocked && 
+                       item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="line-through text-gray-400">
+                            ${parseFloat(item.details.dynamicPricing.basePrice).toFixed(2)}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${parseFloat(item.details.dynamicPricing.currentPrice).toFixed(2)}
+                          </span>
+                          {parseFloat(item.details.dynamicPricing.currentPrice) > parseFloat(item.details.dynamicPricing.basePrice) ? (
+                            <TrendingUp className="h-3 w-3 text-red-500" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3 text-green-500" />
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Price Difference (only if not locked) */}
+                      {!item.details.dynamicPricing.isLocked &&
+                       item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="text-xs">
+                          {parseFloat(item.details.dynamicPricing.currentPrice) > parseFloat(item.details.dynamicPricing.basePrice) ? (
+                            <span className="text-red-600">
+                              +${(parseFloat(item.details.dynamicPricing.currentPrice) - parseFloat(item.details.dynamicPricing.basePrice)).toFixed(2)} increase
+                            </span>
+                          ) : (
+                            <span className="text-green-600">
+                              -${(parseFloat(item.details.dynamicPricing.basePrice) - parseFloat(item.details.dynamicPricing.currentPrice)).toFixed(2)} decrease
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fare Hold Expiry Info */}
+                      {item.details.dynamicPricing.isLocked && item.details.dynamicPricing.userFareHold && (
+                        <div className="text-xs text-green-600">
+                          Protected until {new Date(item.details.dynamicPricing.userFareHold.expiresAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">

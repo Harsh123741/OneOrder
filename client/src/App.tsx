@@ -10,6 +10,7 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import CartSidebar from "@/components/cart/cart-sidebar";
 import { CartSync } from "@/components/cart/cart-sync";
+import { CartRefresh } from "@/components/cart/cart-refresh";
 import Home from "@/pages/home";
 import Flights from "@/pages/flights";
 import Booking from "@/pages/booking";
@@ -64,6 +65,7 @@ function App() {
               <Footer />
               <CartSidebar />
               <CartSync />
+              <CartRefresh enabled={true} interval={60000} />
             </div>
             <Toaster />
           </TooltipProvider>

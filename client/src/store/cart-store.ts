@@ -121,6 +121,50 @@ export const useCartStore = create<CartState>()(
                 console.warn('Failed to get latest service pricing:', pricingError);
               }
             }
+
+            // For flights, get latest pricing before adding to cart
+            if (item.type === 'flight' && item.flightId) {
+              try {
+                const flightResponse = await apiRequest('GET', `/api/flights/${item.flightId}`);
+                const flightData = await flightResponse.json();
+                
+                if (flightData.dynamicPricing) {
+                  // Update item and cartItemData with latest dynamic pricing
+                  const currentPrice = flightData.dynamicPricing.currentPrice.toString();
+                  item.price = parseFloat(currentPrice);
+                  cartItemData.price = currentPrice;
+                  cartItemData.details = {
+                    ...cartItemData.details,
+                    dynamicPricing: flightData.dynamicPricing,
+                    departureTime: flightData.departureTime,
+                    arrivalTime: flightData.arrivalTime,
+                    duration: flightData.duration,
+                    aircraft: flightData.aircraft,
+                    departureAirport: flightData.departureAirport,
+                    arrivalAirport: flightData.arrivalAirport
+                  };
+                  item.details = {
+                    ...item.details,
+                    dynamicPricing: flightData.dynamicPricing,
+                    departureTime: flightData.departureTime,
+                    arrivalTime: flightData.arrivalTime,
+                    duration: flightData.duration,
+                    aircraft: flightData.aircraft,
+                    departureAirport: flightData.departureAirport,
+                    arrivalAirport: flightData.arrivalAirport
+                  };
+                  
+                  console.log('Cart add: Updated flight with dynamic pricing:', {
+                    oldPrice: cartItemData.price,
+                    newPrice: currentPrice,
+                    isLocked: flightData.dynamicPricing.isLocked,
+                    fareHold: flightData.dynamicPricing.userFareHold
+                  });
+                }
+              } catch (pricingError) {
+                console.warn('Failed to get latest flight pricing:', pricingError);
+              }
+            }
             
             console.log('Cart add: Saving item to database:', cartItemData);
             const response = await apiRequest('POST', '/api/cart/add', cartItemData);
