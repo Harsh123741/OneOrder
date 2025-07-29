@@ -216,21 +216,7 @@ export default function Services() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recommendations.recommendedServices.map((service: any) => (
               <div key={service.id} className="relative">
-                <div className="flex justify-between">
-                  {service.userFrequency > 0 && (
-                    <div className="top-3 left-3 z-10">
-                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs shadow-sm">
-                        {service.userFrequency}x before
-                      </Badge>
-                    </div>
-                  )}
-                  <div className="top-3 right-3 z-10">
-                    <Badge variant="outline" className="bg-white/95 text-xs border-amber-300 text-amber-700 shadow-sm">
-                      {service.recommendationReason}
-                    </Badge>
-                  </div>
-                  
-                </div>
+                
                 <ServiceCardEnhanced
                   service={service}
                   phase={service.phase || "booking"}
