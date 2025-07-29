@@ -375,6 +375,44 @@ export class DynamicPricingService {
     return this.updatePricing(entityType, entityId);
   }
 
+  // Reverse a booking when order expires/is cancelled and restore inventory levels
+  async reverseBooking(entityType: string, entityId: number, quantity: number = 1) {
+    const pricing = await db.select({
+      id: dynamicPricing.id,
+      entityType: dynamicPricing.entityType,
+      entityId: dynamicPricing.entityId,
+      basePrice: dynamicPricing.basePrice,
+      currentPrice: dynamicPricing.currentPrice,
+      demandMultiplier: dynamicPricing.demandMultiplier,
+      timeMultiplier: dynamicPricing.timeMultiplier,
+      inventoryLevel: dynamicPricing.inventoryLevel,
+      totalBookings: dynamicPricing.totalBookings,
+      recentBookings: dynamicPricing.recentBookings,
+      lastUpdated: dynamicPricing.lastUpdated,
+      isActive: dynamicPricing.isActive
+    }).from(dynamicPricing)
+      .where(and(
+        eq(dynamicPricing.entityType, entityType),
+        eq(dynamicPricing.entityId, entityId)
+      )).limit(1);
+
+    if (!pricing.length) return;
+
+    const currentPricing = pricing[0];
+    
+    // Reverse booking metrics (restore inventory, reduce demand)
+    await db.update(dynamicPricing)
+      .set({
+        totalBookings: Math.max(0, (currentPricing.totalBookings || 0) - quantity),
+        recentBookings: Math.max(0, (currentPricing.recentBookings || 0) - quantity),
+        inventoryLevel: (currentPricing.inventoryLevel || 0) + quantity
+      })
+      .where(eq(dynamicPricing.id, currentPricing.id));
+
+    // Update pricing based on reduced demand
+    return this.updatePricing(entityType, entityId);
+  }
+
   // Reset recent bookings (called hourly to track recent demand)
   async resetRecentBookings() {
     await db.update(dynamicPricing)

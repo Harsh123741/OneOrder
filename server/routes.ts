@@ -180,6 +180,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clear the user's cart after creating the order
       await storage.clearUserCart(req.user.userId);
 
+      // Record booking with dynamic pricing service at ORDER CREATION (when inventory is reserved)
+      if (order.flightId) {
+        try {
+          // Calculate passenger count for flight booking
+          const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
+
+          // Record flight booking (affects pricing and inventory)
+          await dynamicPricingService.recordBooking('flight', order.flightId, passengerCount);
+
+          // Record service bookings if any
+          if (order.selectedServices && Array.isArray(order.selectedServices)) {
+            for (const service of order.selectedServices) {
+              if (service.id) {
+                await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
+              }
+            }
+          }
+
+          // Record passenger-specific service bookings
+          if (Array.isArray(order.passengerInfo)) {
+            for (const passenger of order.passengerInfo) {
+              if (passenger.services && Array.isArray(passenger.services)) {
+                for (const service of passenger.services) {
+                  if (service.id) {
+                    await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
+                  }
+                }
+              }
+            }
+          }
+
+          console.log(`Dynamic pricing updated at ORDER CREATION for flight ${order.flightId} with ${passengerCount} passengers`);
+        } catch (pricingError) {
+          console.error("Error updating dynamic pricing during order creation:", pricingError);
+          // Don't fail the order if pricing update fails
+        }
+      }
+
       // Set up automatic expiration check
       setTimeout(async () => {
         try {
@@ -224,6 +262,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
               for (const service of reserved.services) {
                 await storage.restoreServiceInventory(service.serviceId, service.quantity);
               }
+            }
+          }
+
+          // Reverse dynamic pricing changes when order expires
+          if (order.flightId) {
+            try {
+              // Calculate passenger count for reversal
+              const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
+
+              // Reverse flight pricing impact (simulate reduced demand)
+              await dynamicPricingService.reverseBooking('flight', order.flightId, passengerCount);
+
+              // Reverse service pricing impacts if any
+              if (order.selectedServices && Array.isArray(order.selectedServices)) {
+                for (const service of order.selectedServices) {
+                  if (service.id) {
+                    await dynamicPricingService.reverseBooking('service', service.id, service.quantity || 1);
+                  }
+                }
+              }
+
+              // Reverse passenger-specific service pricing impacts
+              if (Array.isArray(order.passengerInfo)) {
+                for (const passenger of order.passengerInfo) {
+                  if (passenger.services && Array.isArray(passenger.services)) {
+                    for (const service of passenger.services) {
+                      if (service.id) {
+                        await dynamicPricingService.reverseBooking('service', service.id, service.quantity || 1);
+                      }
+                    }
+                  }
+                }
+              }
+
+              console.log(`Dynamic pricing reversed for expired order ${orderNumber}`);
+            } catch (pricingError) {
+              console.error("Error reversing dynamic pricing for expired order:", pricingError);
+              // Don't fail the expiration if pricing reversal fails
             }
           }
           
@@ -354,43 +430,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Record booking with dynamic pricing service
-      if (order.flightId) {
-        try {
-          // Calculate passenger count for flight booking
-          const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
-
-          // Record flight booking (affects pricing and inventory)
-          await dynamicPricingService.recordBooking('flight', order.flightId, passengerCount);
-
-          // Record service bookings if any
-          if (order.selectedServices && Array.isArray(order.selectedServices)) {
-            for (const service of order.selectedServices) {
-              if (service.id) {
-                await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
-              }
-            }
-          }
-
-          // Record passenger-specific service bookings
-          if (Array.isArray(order.passengerInfo)) {
-            for (const passenger of order.passengerInfo) {
-              if (passenger.services && Array.isArray(passenger.services)) {
-                for (const service of passenger.services) {
-                  if (service.id) {
-                    await dynamicPricingService.recordBooking('service', service.id, service.quantity || 1);
-                  }
-                }
-              }
-            }
-          }
-
-          console.log(`Dynamic pricing updated for flight ${order.flightId} with ${passengerCount} passengers`);
-        } catch (pricingError) {
-          console.error("Error updating dynamic pricing:", pricingError);
-          // Don't fail the order if pricing update fails
-        }
-      }
+      // NOTE: Dynamic pricing is NOT updated here anymore.
+      // Pricing updates happen at ORDER CREATION when inventory is reserved,
+      // not at payment completion.
 
       res.json(updatedOrder);
     } catch (error: any) {

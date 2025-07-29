@@ -274,3 +274,9 @@ The architecture supports a scalable, maintainable airline management system wit
   - **COST BREAKDOWN ANALYSIS**: Base flight cost, services, taxes breakdown with per-passenger calculations
   - **FLIGHT DATA API ENHANCEMENT**: Server now fetches and includes complete flight details in order endpoints
   - **PROFESSIONAL VISUAL DESIGN**: Airline-themed styling with From/To layout and duration information
+- **DYNAMIC PRICING AT ORDER CREATION IMPLEMENTATION (January 2025)**:
+  - **PRICING UPDATES ON RESERVATION**: Dynamic pricing now updates when orders are created and inventory is reserved
+  - **REMOVED PAYMENT COMPLETION PRICING**: No longer updates pricing during payment completion since inventory is already reserved
+  - **ORDER EXPIRATION PRICING REVERSAL**: Added reverseBooking method to restore pricing when orders expire and inventory is released
+  - **COMPREHENSIVE DEMAND TRACKING**: Both flights and services track booking demand and inventory changes at order creation time
+  - **PRICING FLOW OPTIMIZATION**: Ensures pricing reflects actual inventory reservation state rather than payment completion state
