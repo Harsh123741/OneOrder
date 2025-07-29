@@ -20,6 +20,8 @@ import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
 import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit, ArrowLeft } from 'lucide-react';
 import LoyaltyTierDisplay from '@/components/loyalty-tier-display';
+import PriceChangeNotification from "@/components/price-change-notification";
+import { usePriceChangeNotifications } from "@/hooks/use-price-change-notifications";
 
 const passengerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -71,6 +73,9 @@ export default function Checkout() {
 
   // State for selected loyalty bundles
   const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
+
+  // Price change notifications for cart items
+  const { priceChanges, dismissNotifications, hasNewChanges } = usePriceChangeNotifications();
 
   // Handler for loyalty bundle toggling
   const handleBundleToggle = (bundleId: number) => {
@@ -586,6 +591,14 @@ export default function Checkout() {
             )}
           </DialogContent>
         </Dialog>
+        
+        {/* Price Change Notifications for Cart Items */}
+        {hasNewChanges && (
+          <PriceChangeNotification 
+            changes={priceChanges} 
+            onDismiss={dismissNotifications} 
+          />
+        )}
       </div>
     </div>
   );

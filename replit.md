@@ -219,6 +219,13 @@ The architecture supports a scalable, maintainable airline management system wit
   - **AUTHENTICATION INTEGRATION**: Enhanced flight search API to check user-specific fare holds with proper JWT token validation
   - **RESPONSIVE DESIGN IMPROVEMENTS**: Updated flights component layout for better mobile/tablet/desktop responsiveness
   - **VERIFIED FUNCTIONALITY**: Confirmed new users see dynamic pricing while fare hold users see locked prices only for themselves
+- **CART-SPECIFIC PRICE NOTIFICATIONS & DYNAMIC PRICING DISPLAY (January 2025)**:
+  - **TARGETED NOTIFICATIONS**: Price change notifications now only appear for services added to cart, not all services
+  - **ENHANCED CART DISPLAY**: Cart sidebar shows complete dynamic pricing information with tags, price changes, and trending indicators
+  - **REMOVED GENERAL NOTIFICATIONS**: Services page no longer shows price notifications - only cart-specific alerts appear
+  - **FIXED DATABASE PRICING**: Resolved pricing_id database errors and infinite loop issues in dynamic pricing system
+  - **CART PRICING TAGS**: Services in cart display demand-based tags ("booking fast", "limited stock", "most popular")
+  - **REAL-TIME CART UPDATES**: Cart automatically refreshes to show current dynamic pricing with price trend indicators
 - **CRITICAL PASSWORD & PRICING FIXES (January 2025)**:
   - **FIXED PASSWORD OVERRIDE BUG**: Resolved issue where new user registration was overriding existing users' passwords
   - **ENHANCED PASSWORD SECURITY**: Increased bcrypt salt rounds to 12 and ensured unique password hashes for each user

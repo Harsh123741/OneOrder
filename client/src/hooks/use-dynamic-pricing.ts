@@ -70,13 +70,8 @@ export function useDynamicPricing(phase?: string, options: DynamicPricingHookOpt
             onPriceChange(serviceId, oldPrice, newPrice);
           }
           
-          // Show toast notification
-          toast({
-            title: isIncrease ? "Price Increased" : "Price Decreased",
-            description: `${serviceName}: ${isIncrease ? '+' : ''}$${Math.abs(difference).toFixed(2)}`,
-            variant: isIncrease ? "destructive" : "default",
-            duration: 4000,
-          });
+          // Log price change for potential cart notifications
+          console.log(`Price changed for ${serviceName}: ${oldPrice} -> ${newPrice}`);
         });
         
         setPreviousPrices(currentPrices);
