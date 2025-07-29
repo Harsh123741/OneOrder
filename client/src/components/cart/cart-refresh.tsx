@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
-import { useToast } from '@/hooks/use-toast';
+import { useNotificationStore } from '@/store/notification-store';
 
 interface CartRefreshProps {
   enabled?: boolean;
@@ -10,7 +10,7 @@ interface CartRefreshProps {
 
 export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshProps) {
   const { items, updateItemDetails } = useCart();
-  const { toast } = useToast();
+  const { addNotification } = useNotificationStore();
 
   useEffect(() => {
     if (!enabled) return;
@@ -42,12 +42,14 @@ export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshPro
                   }
                 });
 
-                // Notify user of price change
-                toast({
-                  title: `Cart Price ${isIncrease ? 'Increase' : 'Decrease'}`,
-                  description: `${item.name}: ${isIncrease ? '+' : ''}$${Math.abs(difference).toFixed(2)}`,
-                  variant: isIncrease ? "destructive" : "default",
-                  duration: 6000,
+                // Add price change notification
+                addNotification({
+                  itemId: item.id,
+                  itemName: item.name,
+                  itemType: 'service',
+                  oldPrice: oldPrice,
+                  newPrice: newPrice,
+                  trend: isIncrease ? 'up' : 'down'
                 });
               }
             }
@@ -84,12 +86,15 @@ export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshPro
                   }
                 });
 
-                // Notify user of flight price change
-                toast({
-                  title: `Flight Price ${isIncrease ? 'Increase' : 'Decrease'}`,
-                  description: `${item.name}: ${isIncrease ? '+' : ''}$${Math.abs(difference).toFixed(2)}`,
-                  variant: isIncrease ? "destructive" : "default",
-                  duration: 8000, // Longer duration for flight price changes
+                // Add flight price change notification
+                addNotification({
+                  itemId: item.id,
+                  itemName: item.name,
+                  itemType: 'flight',
+                  oldPrice: oldPrice,
+                  newPrice: newPrice,
+                  trend: isIncrease ? 'up' : 'down',
+                  fareHoldStatus: hasFareHold ? 'protected' : 'live'
                 });
               }
             }
@@ -103,7 +108,7 @@ export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshPro
     const intervalId = setInterval(refreshCartPricing, interval);
 
     return () => clearInterval(intervalId);
-  }, [items, enabled, interval, toast, updateItemDetails]);
+  }, [items, enabled, interval, addNotification, updateItemDetails]);
 
   return null; // This component doesn't render anything
 }
