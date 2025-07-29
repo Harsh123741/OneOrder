@@ -7,7 +7,13 @@ import OrderCard from "@/components/order/order-card";
 import { OrderCountdownCard } from "@/components/order-countdown-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Package, Calendar, CheckCircle, XCircle, RefreshCw } from "lucide-react";
+import {
+  Package,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,7 +25,12 @@ export default function MyOrders() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: orders = [], isLoading, error, refetch } = useQuery<any[]>({
+  const {
+    data: orders = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
     enabled: isAuthenticated && !!user?.id,
     refetchOnMount: true, // Always refetch when component mounts
@@ -36,7 +47,9 @@ export default function MyOrders() {
     onSuccess: (data) => {
       if (data.updatedCount > 0) {
         // Refresh orders to show updated status
-        queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
+        queryClient.invalidateQueries({
+          queryKey: ["/api/orders/user", user?.id],
+        });
       }
     },
   });
@@ -58,7 +71,7 @@ export default function MyOrders() {
   const handleOrderExpired = (orderNumber: string) => {
     // Refresh orders to show updated status
     queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
-    
+
     toast({
       title: "Payment Failed",
       description: `Payment failed for order ${orderNumber}`,
@@ -70,11 +83,12 @@ export default function MyOrders() {
   useEffect(() => {
     if (isAuthenticated && user?.id && orders.length > 0) {
       // Check if there are any pending orders that might be expired
-      const hasPendingOrders = orders.some((order: any) => 
-        (order.status === "pending" || order.status === "pending_payment") && 
-        order.paymentStatus === "pending"
+      const hasPendingOrders = orders.some(
+        (order: any) =>
+          (order.status === "pending" || order.status === "pending_payment") &&
+          order.paymentStatus === "pending",
       );
-      
+
       if (hasPendingOrders) {
         checkExpiredOrdersMutation.mutate();
       }
@@ -88,16 +102,16 @@ export default function MyOrders() {
   const filterOrdersByStatus = (status: string) => {
     switch (status) {
       case "upcoming":
-        return orders.filter((order: any) => 
-          order.status === 'confirmed' || order.status === 'pending'
+        return orders.filter(
+          (order: any) =>
+            order.status === "confirmed" || order.status === "pending",
         );
       case "completed":
-        return orders.filter((order: any) => 
-          order.status === 'completed'
-        );
+        return orders.filter((order: any) => order.status === "completed");
       case "cancelled":
-        return orders.filter((order: any) => 
-          order.status === 'cancelled' || order.status === 'order_expired'
+        return orders.filter(
+          (order: any) =>
+            order.status === "cancelled" || order.status === "order_expired",
         );
       default:
         return orders;
@@ -127,18 +141,13 @@ export default function MyOrders() {
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
-            <p className="text-gray-600">Manage all your flight reservations and services</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              My Bookings
+            </h1>
+            <p className="text-gray-600">
+              Manage all your flight reservations and services
+            </p>
           </div>
-          <Button
-            onClick={() => refetch()}
-            variant="outline"
-            className="flex items-center gap-2"
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
         </div>
 
         {/* Summary Cards */}
@@ -150,7 +159,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total Bookings</p>
-                <p className="text-xl font-bold text-gray-900">{orders.length}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {orders.length}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -162,7 +173,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Upcoming</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("upcoming")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("upcoming")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -174,7 +187,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("completed")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("completed")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -186,7 +201,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Cancelled</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("cancelled")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("cancelled")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -195,17 +212,27 @@ export default function MyOrders() {
         {/* Filter Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="all">All Bookings ({getTabCount("all")})</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming ({getTabCount("upcoming")})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({getTabCount("completed")})</TabsTrigger>
-            <TabsTrigger value="cancelled">Cancelled ({getTabCount("cancelled")})</TabsTrigger>
+            <TabsTrigger value="all">
+              All Bookings ({getTabCount("all")})
+            </TabsTrigger>
+            <TabsTrigger value="upcoming">
+              Upcoming ({getTabCount("upcoming")})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({getTabCount("completed")})
+            </TabsTrigger>
+            <TabsTrigger value="cancelled">
+              Cancelled ({getTabCount("cancelled")})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
             {error && (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <p className="text-red-600">Error loading bookings. Please try again.</p>
+                  <p className="text-red-600">
+                    Error loading bookings. Please try again.
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -217,19 +244,17 @@ export default function MyOrders() {
                     <Package className="w-8 h-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {activeTab === "all" 
-                      ? "No bookings yet" 
-                      : `No ${activeTab} bookings`
-                    }
+                    {activeTab === "all"
+                      ? "No bookings yet"
+                      : `No ${activeTab} bookings`}
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    {activeTab === "all" 
-                      ? "Start your journey by booking your first flight" 
-                      : `You don't have any ${activeTab} bookings at the moment`
-                    }
+                    {activeTab === "all"
+                      ? "Start your journey by booking your first flight"
+                      : `You don't have any ${activeTab} bookings at the moment`}
                   </p>
                   {activeTab === "all" && (
-                    <Button 
+                    <Button
                       onClick={() => setLocation("/")}
                       className="airline-button-primary"
                     >
@@ -245,8 +270,8 @@ export default function MyOrders() {
                 {filteredOrders.map((order: any) => (
                   <div key={order.id} className="space-y-3">
                     {/* Order Countdown Timer for pending payment orders */}
-                    <OrderCountdownCard 
-                      order={order} 
+                    <OrderCountdownCard
+                      order={order}
                       onOrderExpired={handleOrderExpired}
                     />
                     <OrderCard order={order} />
@@ -272,7 +297,9 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Book Another Flight</h4>
-                    <p className="text-sm text-gray-600">Search and book new flights</p>
+                    <p className="text-sm text-gray-600">
+                      Search and book new flights
+                    </p>
                   </div>
                 </Button>
 
@@ -283,7 +310,9 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Web Check-in</h4>
-                    <p className="text-sm text-gray-600">Check-in for upcoming flights</p>
+                    <p className="text-sm text-gray-600">
+                      Check-in for upcoming flights
+                    </p>
                   </div>
                 </Button>
 
@@ -297,7 +326,9 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Customer Support</h4>
-                    <p className="text-sm text-gray-600">Get help with your bookings</p>
+                    <p className="text-sm text-gray-600">
+                      Get help with your bookings
+                    </p>
                   </div>
                 </Button>
               </div>

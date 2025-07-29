@@ -812,6 +812,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get personalized service recommendations
+  app.get("/api/services/recommendations", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { flightId, departureTime } = req.query;
+      
+      // Get user's order history
+      const userOrders = await storage.getUserOrders(userId);
+      
+      // Analyze service frequency from order history
+      const serviceFrequency: {[key: string]: number} = {};
+      
+      userOrders.forEach((order: any) => {
+        // Count services from selectedServices array
+        if (order.selectedServices && Array.isArray(order.selectedServices)) {
+          order.selectedServices.forEach((service: any) => {
+            if (service.name) {
+              serviceFrequency[service.name] = (serviceFrequency[service.name] || 0) + 1;
+            }
+          });
+        }
+        
+        // Count services from passenger-specific services
+        if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+          order.passengerInfo.forEach((passenger: any) => {
+            if (passenger.services && Array.isArray(passenger.services)) {
+              passenger.services.forEach((service: any) => {
+                if (service.name) {
+                  serviceFrequency[service.name] = (serviceFrequency[service.name] || 0) + 1;
+                }
+              });
+            }
+          });
+        }
+      });
+      
+      // Get all available services for booking phase
+      const allServices = await storage.getServices('booking');
+      
+      // Generate context-based recommendations
+      const contextRecommendations = [];
+      const flightTime = departureTime ? new Date(departureTime) : new Date();
+      const flightHour = flightTime.getHours();
+      
+      // Time-based recommendations
+      if (flightHour < 6 || flightHour > 22) {
+        // Early morning or late night flights
+        contextRecommendations.push(
+          'Lounge Access',
+          'Fast Track Security', 
+          'Priority Boarding'
+        );
+      } else if (flightHour >= 6 && flightHour < 10) {
+        // Morning flights
+        contextRecommendations.push(
+          'Priority Boarding',
+          'Fast Track Security',
+          'Meal Pre-booking'
+        );
+      } else if (flightHour >= 18 && flightHour <= 22) {
+        // Evening flights
+        contextRecommendations.push(
+          'Lounge Access',
+          'Priority Boarding',
+          'Travel Insurance'
+        );
+      }
+      
+      // Always recommend commonly useful services
+      contextRecommendations.push(
+        'Extra Baggage',
+        'Travel Insurance',
+        'Priority Boarding'
+      );
+      
+      // Combine frequency-based and context-based recommendations
+      const frequentServices = Object.entries(serviceFrequency)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([name]) => name);
+      
+      const recommendedServiceNames = [
+        ...new Set([...frequentServices, ...contextRecommendations])
+      ].slice(0, 6);
+      
+      // Get the actual service objects with dynamic pricing
+      const recommendedServices = await Promise.all(
+        allServices
+          .filter(service => 
+            recommendedServiceNames.some(name => 
+              service.name.toLowerCase().includes(name.toLowerCase()) ||
+              name.toLowerCase().includes(service.name.toLowerCase())
+            )
+          )
+          .map(async (service) => {
+            try {
+              // Initialize and get dynamic pricing
+              await dynamicPricingService.initializeServicePricing(service.id, parseFloat(service.price));
+              await dynamicPricingService.updateServicePricing(service.id);
+              const pricing = await dynamicPricingService.getServicePrice(service.id);
+
+              if (pricing) {
+                const basePrice = parseFloat(pricing.basePrice);
+                const currentPrice = parseFloat(pricing.currentPrice);
+                const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
+
+                return {
+                  ...service,
+                  basePrice: basePrice.toFixed(2),
+                  price: currentPrice.toFixed(2),
+                  dynamicPricing: {
+                    basePrice,
+                    currentPrice,
+                    demandMultiplier: parseFloat(pricing.demandMultiplier || "1.0"),
+                    inventoryLevel: pricing.inventoryLevel || 100,
+                    totalBookings: pricing.totalBookings || 0,
+                    lastUpdated: pricing.lastUpdated,
+                    pricingTag
+                  }
+                };
+              }
+              return service;
+            } catch (error) {
+              return service;
+            }
+          })
+      );
+      
+      // Add recommendation reasons
+      const servicesWithReasons = recommendedServices.map(service => {
+        let reason = 'Popular choice';
+        const frequency = serviceFrequency[service.name] || 0;
+        
+        if (frequency > 0) {
+          reason = `You've selected this ${frequency} time${frequency > 1 ? 's' : ''} before`;
+        } else if (contextRecommendations.includes(service.name)) {
+          if (flightHour < 6 || flightHour > 22) {
+            reason = 'Perfect for early/late flights';
+          } else if (flightHour >= 6 && flightHour < 10) {
+            reason = 'Great for morning departures';
+          } else if (flightHour >= 18 && flightHour <= 22) {
+            reason = 'Ideal for evening flights';
+          }
+        }
+        
+        return {
+          ...service,
+          recommendationReason: reason,
+          userFrequency: frequency
+        };
+      });
+      
+      res.json({
+        recommendedServices: servicesWithReasons,
+        userOrderCount: userOrders.length,
+        topServices: frequentServices
+      });
+      
+    } catch (error: any) {
+      console.error("Error generating service recommendations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/services/:id", async (req, res) => {
     try {
       const serviceId = parseInt(req.params.id);

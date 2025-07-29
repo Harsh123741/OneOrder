@@ -6,7 +6,10 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
 import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
-import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw, Star, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Services() {
   const [, setLocation] = useLocation();
@@ -16,6 +19,7 @@ export default function Services() {
   const [passengerCount, setPassengerCount] = useState(1);
   const [currentPassenger, setCurrentPassenger] = useState(0);
   const [passengerServices, setPassengerServices] = useState<{[key: number]: any[]}>({});
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const initializeData = () => {
@@ -43,6 +47,13 @@ export default function Services() {
   const { services, isLoading: servicesLoading, refreshPricing } = useDynamicPricing(currentPhase, {
     enabled: !!selectedFlight,
     interval: 30000, // Refresh every 30 seconds
+  });
+
+  // Fetch personalized service recommendations
+  const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
+    queryKey: ["/api/services/recommendations", selectedFlight?.id, selectedFlight?.departureTime],
+    enabled: isAuthenticated && !!selectedFlight && currentPhase === "booking",
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   // Removed: Price change notifications now only shown in cart for cart items
@@ -107,6 +118,69 @@ export default function Services() {
       default:
         return "";
     }
+  };
+
+  // Component for displaying recommended services
+  const RecommendedServicesSection = () => {
+    if (!isAuthenticated || currentPhase !== "booking" || recommendationsLoading) {
+      return null;
+    }
+
+    if (!recommendations?.recommendedServices?.length) {
+      return null;
+    }
+
+    return (
+      <Card className="mb-8 border-0 shadow-xl bg-gradient-to-r from-amber-50 to-orange-50">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-full">
+              <Star className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                Recommended for You
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                  <TrendingUp className="w-3 h-3 mr-1" />
+                  Personal
+                </Badge>
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Based on your {recommendations.userOrderCount} previous bookings and flight timing
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recommendations.recommendedServices.map((service: any) => (
+              <div key={service.id} className="relative">
+                <ServiceCardEnhanced
+                  service={service}
+                  onAddToCart={() => {
+                    // Use existing add to cart logic - will be handled by ServiceCardEnhanced
+                  }}
+                  passengerCount={passengerCount}
+                  currentPassenger={currentPassenger}
+                />
+                <div className="absolute top-3 right-3 z-10">
+                  <Badge variant="outline" className="bg-white/95 text-xs border-amber-300 text-amber-700 shadow-sm">
+                    {service.recommendationReason}
+                  </Badge>
+                </div>
+                {service.userFrequency > 0 && (
+                  <div className="absolute top-3 left-3 z-10">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs shadow-sm">
+                      {service.userFrequency}x before
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   if (!selectedFlight) {
@@ -224,6 +298,9 @@ export default function Services() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Recommended Services Section */}
+        <RecommendedServicesSection />
 
         {/* Multi-Passenger Service Selection */}
         {passengerCount > 1 ? (
