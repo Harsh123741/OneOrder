@@ -673,11 +673,23 @@ export class DatabaseStorage implements IStorage {
     // Update service inventory for selected services
     if (order.selectedServices && Array.isArray(order.selectedServices)) {
       for (const service of order.selectedServices as any[]) {
-        const serviceData = await this.getService(service.id);
-        if (serviceData && serviceData.inventory !== null) {
-          const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
-          await this.updateServiceInventory(service.id, newInventory);
-          console.log(`Updated service inventory: ${service.name} -> ${newInventory}`);
+        // Parse service ID to integer if it's a string like "service-3"
+        let serviceId = service.id;
+        if (typeof serviceId === 'string' && serviceId.startsWith('service-')) {
+          serviceId = parseInt(serviceId.replace('service-', ''));
+        } else if (typeof serviceId === 'string') {
+          serviceId = parseInt(serviceId);
+        }
+        
+        if (!isNaN(serviceId)) {
+          const serviceData = await this.getService(serviceId);
+          if (serviceData && serviceData.inventory !== null) {
+            const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+            await this.updateServiceInventory(serviceId, newInventory);
+            console.log(`Updated service inventory: ${service.name} -> ${newInventory}`);
+          }
+        } else {
+          console.log(`Skipping invalid service ID: ${service.id}`);
         }
       }
     }
@@ -687,11 +699,23 @@ export class DatabaseStorage implements IStorage {
       for (const passenger of order.passengerInfo as any[]) {
         if (passenger.services && Array.isArray(passenger.services)) {
           for (const service of passenger.services) {
-            const serviceData = await this.getService(service.id);
-            if (serviceData && serviceData.inventory !== null) {
-              const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
-              await this.updateServiceInventory(service.id, newInventory);
-              console.log(`Updated passenger service inventory: ${service.name} -> ${newInventory}`);
+            // Parse service ID to integer if it's a string like "service-3"
+            let serviceId = service.id;
+            if (typeof serviceId === 'string' && serviceId.startsWith('service-')) {
+              serviceId = parseInt(serviceId.replace('service-', ''));
+            } else if (typeof serviceId === 'string') {
+              serviceId = parseInt(serviceId);
+            }
+            
+            if (!isNaN(serviceId)) {
+              const serviceData = await this.getService(serviceId);
+              if (serviceData && serviceData.inventory !== null) {
+                const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+                await this.updateServiceInventory(serviceId, newInventory);
+                console.log(`Updated passenger service inventory: ${service.name} -> ${newInventory}`);
+              }
+            } else {
+              console.log(`Skipping invalid passenger service ID: ${service.id}`);
             }
           }
         }
