@@ -81,29 +81,31 @@ export function NotificationCenter({
       <PopoverContent className="w-80 p-0" align="end">
         <Card className="border-0 shadow-lg">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg mb-3">Price Notifications</CardTitle>
-            {notifications.length > 0 && (
-              <div className="flex gap-2">
-                {unreadCount > 0 && (
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">Price Notifications</CardTitle>
+              {notifications.length > 0 && (
+                <div className="flex gap-2">
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onMarkAllAsRead}
+                      className="text-xs"
+                    >
+                      Mark all read
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={onMarkAllAsRead}
+                    onClick={onClearAll}
                     className="text-xs"
                   >
-                    Mark all read
+                    Clear all
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onClearAll}
-                  className="text-xs"
-                >
-                  Clear all
-                </Button>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </CardHeader>
           
           {notifications.length === 0 ? (
@@ -115,7 +117,7 @@ export function NotificationCenter({
               </p>
             </CardContent>
           ) : (
-            <ScrollArea className="max-h-80">
+            <ScrollArea className="max-h-96">
               <CardContent className="p-0">
                 {notifications.map((notification, index) => (
                   <div key={notification.id}>
