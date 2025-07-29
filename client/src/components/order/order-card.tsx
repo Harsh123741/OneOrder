@@ -361,8 +361,8 @@ export default function OrderCard({
           </div>
         )}
 
-        {/* Check-in Available Notice */}
-        {order.canCheckIn && !order.isCheckedIn && (
+        {/* Check-in Available Notice - Only show for confirmed orders where user hasn't checked in */}
+        {order.status === "confirmed" && order.canCheckIn && !order.isCheckedIn && (
           <div className="mt-4 p-3 bg-yellow-100 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
               <strong>Check-in now available!</strong> Complete your check-in up
