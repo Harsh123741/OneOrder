@@ -880,8 +880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update order totals
-      const currentSubtotal = parseFloat(```tool_code
-order.subtotal);
+      const currentSubtotal = parseFloat(order.subtotal);
       const newSubtotal = currentSubtotal + additionalServicesPrice;
       const newTaxes = parseFloat(order.taxes) + taxAmount;
       const newTotal = parseFloat(order.total) + totalCost;
