@@ -6,7 +6,9 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
 import { CartRefresh } from "@/components/cart/cart-refresh";
+import PriceChangeNotification from "@/components/price-change-notification";
 import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
+import { usePriceChangeNotifications } from "@/hooks/use-price-change-notifications";
 import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw } from "lucide-react";
 
 export default function Services() {
@@ -19,30 +21,35 @@ export default function Services() {
   const [passengerServices, setPassengerServices] = useState<{[key: number]: any[]}>({});
 
   useEffect(() => {
-    const storedFlight = sessionStorage.getItem("selectedFlight");
-    const storedSeat = sessionStorage.getItem("selectedSeat");
-    const storedSearch = sessionStorage.getItem("flightSearch");
-    
-    if (storedFlight) {
-      setSelectedFlight(JSON.parse(storedFlight));
-    } else {
-      setLocation("/");
-    }
-    
-    if (storedSeat) {
-      setSelectedSeat(JSON.parse(storedSeat));
-    }
-    
-    if (storedSearch) {
-      const searchData = JSON.parse(storedSearch);
-      setPassengerCount(searchData.passengers || 1);
-    }
-  }, [setLocation]);
+    const initializeData = () => {
+      const storedFlight = sessionStorage.getItem("selectedFlight");
+      const storedSeat = sessionStorage.getItem("selectedSeat");
+      const storedSearch = sessionStorage.getItem("flightSearch");
+      
+      if (storedFlight) {
+        setSelectedFlight(JSON.parse(storedFlight));
+      }
+      
+      if (storedSeat) {
+        setSelectedSeat(JSON.parse(storedSeat));
+      }
+      
+      if (storedSearch) {
+        const searchData = JSON.parse(storedSearch);
+        setPassengerCount(searchData.passengers || 1);
+      }
+    };
+
+    initializeData();
+  }, []);
 
   const { services, isLoading: servicesLoading, refreshPricing } = useDynamicPricing(currentPhase, {
     enabled: !!selectedFlight,
     interval: 30000, // Refresh every 30 seconds
   });
+
+  // Price change notifications
+  const { priceChanges, dismissNotifications, hasNewChanges } = usePriceChangeNotifications();
 
   // Filter out fare hold services if user already has an active fare hold
   const filteredServices = selectedFlight?.fareHold 
@@ -392,6 +399,14 @@ export default function Services() {
 
         {/* Cart refresh for real-time pricing updates */}
         <CartRefresh enabled={true} interval={60000} />
+
+        {/* Price Change Notifications */}
+        {hasNewChanges && (
+          <PriceChangeNotification 
+            changes={priceChanges} 
+            onDismiss={dismissNotifications} 
+          />
+        )}
 
         {/* Navigation Buttons */}
         <div className="flex justify-between">

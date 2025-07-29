@@ -539,18 +539,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Service routes
+  // Service routes with real-time dynamic pricing
   app.get("/api/services", async (req, res) => {
     try {
       const phase = req.query.phase as string;
       const services = await storage.getServices(phase);
       
-      // Add dynamic pricing to services
+      // Add dynamic pricing to services with real-time updates
       const servicesWithPricing = await Promise.all(
         services.map(async (service) => {
           try {
             // Initialize service pricing if not exists
             await dynamicPricingService.initializeServicePricing(service.id, parseFloat(service.price));
+            
+            // Update pricing to get latest market rates
+            await dynamicPricingService.updateServicePricing(service.id);
             
             // Get current pricing
             const pricing = await dynamicPricingService.getServicePrice(service.id);
@@ -563,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return {
                 ...service,
                 basePrice: basePrice.toFixed(2),
-                price: currentPrice.toFixed(2),
+                price: currentPrice.toFixed(2), // Use dynamic pricing as the displayed price
                 dynamicPricing: {
                   basePrice,
                   currentPrice,

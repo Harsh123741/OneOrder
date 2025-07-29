@@ -36,42 +36,53 @@ export function useDynamicPricing(phase?: string, options: DynamicPricingHookOpt
   // Track price changes and notify user
   useEffect(() => {
     if (services.length > 0) {
+      const currentPrices: {[key: number]: number} = {};
+      const priceChanges: Array<{serviceId: number, serviceName: string, oldPrice: number, newPrice: number}> = [];
+      
       services.forEach((service: any) => {
         if (service.dynamicPricing) {
           const serviceId = service.id;
           const currentPrice = service.dynamicPricing.currentPrice;
-          const previousPrice = previousPrices[serviceId];
+          currentPrices[serviceId] = currentPrice;
           
+          const previousPrice = previousPrices[serviceId];
           if (previousPrice !== undefined && previousPrice !== currentPrice) {
-            const difference = currentPrice - previousPrice;
-            const isIncrease = difference > 0;
-            
-            // Call custom callback if provided
-            if (onPriceChange) {
-              onPriceChange(serviceId, previousPrice, currentPrice);
-            }
-            
-            // Show toast notification
-            toast({
-              title: isIncrease ? "Price Increased" : "Price Decreased",
-              description: `${service.name}: ${isIncrease ? '+' : ''}$${Math.abs(difference).toFixed(2)}`,
-              variant: isIncrease ? "destructive" : "default",
-              duration: 4000,
+            priceChanges.push({
+              serviceId,
+              serviceName: service.name,
+              oldPrice: previousPrice,
+              newPrice: currentPrice
             });
           }
         }
       });
       
-      // Update previous prices
-      const newPreviousPrices: {[key: number]: number} = {};
-      services.forEach((service: any) => {
-        if (service.dynamicPricing) {
-          newPreviousPrices[service.id] = service.dynamicPricing.currentPrice;
-        }
-      });
-      setPreviousPrices(newPreviousPrices);
+      // Only update state if there are actual changes
+      const hasChanges = priceChanges.length > 0 || Object.keys(previousPrices).length === 0;
+      if (hasChanges) {
+        // Show notifications for price changes
+        priceChanges.forEach(({ serviceId, serviceName, oldPrice, newPrice }) => {
+          const difference = newPrice - oldPrice;
+          const isIncrease = difference > 0;
+          
+          // Call custom callback if provided
+          if (onPriceChange) {
+            onPriceChange(serviceId, oldPrice, newPrice);
+          }
+          
+          // Show toast notification
+          toast({
+            title: isIncrease ? "Price Increased" : "Price Decreased",
+            description: `${serviceName}: ${isIncrease ? '+' : ''}$${Math.abs(difference).toFixed(2)}`,
+            variant: isIncrease ? "destructive" : "default",
+            duration: 4000,
+          });
+        });
+        
+        setPreviousPrices(currentPrices);
+      }
     }
-  }, [services, previousPrices, onPriceChange, toast]);
+  }, [services, onPriceChange, toast]);
 
   // Manual refresh function
   const refreshPricing = () => {

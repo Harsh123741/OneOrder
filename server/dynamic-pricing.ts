@@ -116,7 +116,7 @@ export class DynamicPricingService {
     const newPrice = Math.round(basePrice * demandMultiplier * 100) / 100;
 
     // Update pricing
-    const [updatedPricing] = await db.update(dynamicPricing)
+    const updatedPricing = await db.update(dynamicPricing)
       .set({
         currentPrice: newPrice.toString(),
         demandMultiplier: demandMultiplier.toFixed(3),
@@ -125,15 +125,53 @@ export class DynamicPricingService {
       .where(eq(dynamicPricing.id, pricing.id))
       .returning();
 
-    // Log price history
-    await db.insert(priceHistory).values({
-      entityType: 'service',
-      entityId: serviceId,
-      price: newPrice.toString(),
-      timestamp: new Date()
-    });
+    // Log price history with pricing_id
+    if (updatedPricing.length > 0) {
+      await db.insert(priceHistory).values({
+        pricingId: updatedPricing[0].id,
+        price: newPrice.toFixed(2),
+        demandMultiplier: parseFloat(demandMultiplier.toFixed(3)),
+        timeMultiplier: 1.0,
+        totalBookings: pricing.totalBookings,
+        timestamp: new Date()
+      });
+    }
 
-    return updatedPricing;
+    return updatedPricing[0] || pricing;
+  }
+
+  // Calculate service time multiplier (adds fluctuation)
+  calculateServiceTimeMultiplier(): number {
+    const hour = new Date().getHours();
+    const randomFactor = 0.95 + (Math.random() * 0.1); // 0.95 to 1.05
+    
+    // Peak hours: 9-11 AM and 2-4 PM and 7-9 PM (higher demand)
+    if ((hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16) || (hour >= 19 && hour <= 21)) {
+      return randomFactor * 1.1; // 10% increase during peak
+    }
+    
+    return randomFactor;
+  }
+
+  // Generate pricing tag for services based on demand and inventory
+  generateServicePricingTag(demandFactor: number, inventoryLevel: number, cartCount: number, totalBookings: number): { tag: string; message: string; variant: 'destructive' | 'default' | 'secondary' } {
+    if (inventoryLevel < 5) {
+      return { tag: 'ONLY FEW LEFT!', message: 'Act fast - very limited!', variant: 'destructive' };
+    } else if (inventoryLevel < 15) {
+      return { tag: 'LIMITED STOCK', message: 'Low availability', variant: 'destructive' };
+    } else if (cartCount > 10) {
+      return { tag: 'BOOKING FAST', message: 'High demand right now', variant: 'destructive' };
+    } else if (demandFactor > 0.6) {
+      return { tag: 'HIGH DEMAND', message: 'Price rising due to demand', variant: 'secondary' };
+    } else if (totalBookings > 50) {
+      return { tag: 'MOST POPULAR', message: 'Customer favorite', variant: 'default' };
+    } else if (cartCount > 5) {
+      return { tag: 'FILLING FAST', message: 'Others are booking', variant: 'secondary' };
+    } else if (demandFactor < 0.3 && inventoryLevel > 50) {
+      return { tag: 'GREAT VALUE', message: 'Best time to book', variant: 'default' };
+    }
+    
+    return { tag: '', message: '', variant: 'default' };
   }
 
   // Get pricing tag for service based on demand and inventory
@@ -155,6 +193,19 @@ export class DynamicPricingService {
     }
     
     return { tag: '', message: '', variant: 'default' };
+  }
+
+  // Log price history
+  async logPriceHistory(entityType: string, entityId: number, oldPrice: number, newPrice: number, demandMultiplier: number, pricingId?: number) {
+    if (pricingId) {
+      await db.insert(priceHistory).values({
+        entityType,
+        entityId,
+        pricingId,
+        price: newPrice.toString(),
+        timestamp: new Date()
+      });
+    }
   }
 
   // Get current service price with dynamic pricing
