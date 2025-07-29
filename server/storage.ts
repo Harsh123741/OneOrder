@@ -631,7 +631,7 @@ export class DatabaseStorage implements IStorage {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
     if (!order) return undefined;
 
-    if (order.status !== "pending" || order.paymentStatus !== "pending") {
+    if ((order.status !== "pending" && order.status !== "pending_payment") || order.paymentStatus !== "pending") {
       throw new Error("Order is not in pending payment status");
     }
 

@@ -159,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if order is in pending payment status
-      if (order.status !== "pending" || order.paymentStatus !== "pending") {
+      if ((order.status !== "pending" && order.status !== "pending_payment") || order.paymentStatus !== "pending") {
         return res.status(400).json({ error: "Order is not pending payment" });
       }
 
