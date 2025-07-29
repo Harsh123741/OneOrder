@@ -82,7 +82,28 @@ export default function Services() {
     retry: 2
   });
 
-  // Clean up any debug logging for production
+  // Function to enrich services with recommendation data
+  const enrichServicesWithRecommendations = (services: any[]) => {
+    if (!recommendations?.recommendedServices) {
+      return services;
+    }
+
+    return services.map(service => {
+      const recommendation = recommendations.recommendedServices.find(
+        (rec: any) => rec.id === service.id
+      );
+      
+      if (recommendation) {
+        return {
+          ...service,
+          recommendationReason: recommendation.recommendationReason,
+          userFrequency: recommendation.userFrequency
+        };
+      }
+      
+      return service;
+    });
+  };
 
   // Removed: Price change notifications now only shown in cart for cart items
 
@@ -195,26 +216,26 @@ export default function Services() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recommendations.recommendedServices.map((service: any) => (
               <div key={service.id} className="relative">
-                <ServiceCardEnhanced
-                  service={service}
-                  onAddToCart={() => {
-                    // Use existing add to cart logic - will be handled by ServiceCardEnhanced
-                  }}
-                  passengerCount={passengerCount}
-                  currentPassenger={currentPassenger}
-                />
-                <div className="absolute top-3 right-3 z-10">
-                  <Badge variant="outline" className="bg-white/95 text-xs border-amber-300 text-amber-700 shadow-sm">
-                    {service.recommendationReason}
-                  </Badge>
-                </div>
-                {service.userFrequency > 0 && (
-                  <div className="absolute top-3 left-3 z-10">
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs shadow-sm">
-                      {service.userFrequency}x before
+                <div className="flex justify-between">
+                  {service.userFrequency > 0 && (
+                    <div className="top-3 left-3 z-10">
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs shadow-sm">
+                        {service.userFrequency}x before
+                      </Badge>
+                    </div>
+                  )}
+                  <div className="top-3 right-3 z-10">
+                    <Badge variant="outline" className="bg-white/95 text-xs border-amber-300 text-amber-700 shadow-sm">
+                      {service.recommendationReason}
                     </Badge>
                   </div>
-                )}
+                  
+                </div>
+                <ServiceCardEnhanced
+                  service={service}
+                  phase={service.phase || "booking"}
+                />
+               
               </div>
             ))}
           </div>
@@ -418,8 +439,8 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredServices
-                    .filter(service => service.phase === currentPhase)
+                  {enrichServicesWithRecommendations(filteredServices)
+                    .filter((service: any) => service.phase === currentPhase)
                     .map((service: any) => (
                       <ServiceCardEnhanced 
                         key={`${service.id}-passenger-${currentPassenger}`} 
@@ -483,8 +504,8 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredServices
-                    .filter(service => service.phase === currentPhase)
+                  {enrichServicesWithRecommendations(filteredServices)
+                    .filter((service: any) => service.phase === currentPhase)
                     .map((service: any) => (
                       <ServiceCardEnhanced key={service.id} service={service} phase={currentPhase} />
                     ))}

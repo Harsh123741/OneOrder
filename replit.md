@@ -286,3 +286,10 @@ The architecture supports a scalable, maintainable airline management system wit
   - **MANUAL REFRESH BUTTON**: Added refresh button with loading indicator for user-controlled updates
   - **STALE DATA PREVENTION**: Set staleTime to 0 to ensure data is always considered fresh and refetched
   - **RESPONSIVE REFRESH UI**: Refresh button shows spinning animation during data loading
+- **ENHANCED SERVICE CARD RECOMMENDATIONS DISPLAY (January 2025)**:
+  - **IN-CARD RECOMMENDATION BADGES**: Moved recommendation reason and frequency badges directly into service cards for better visual integration
+  - **IMPROVED USER EXPERIENCE**: Badges now display within the card header showing "3x before" frequency and contextual reasons like "Great for morning departures"
+  - **SEAMLESS INTEGRATION**: Enhanced ServiceCardEnhanced component to accept and display recommendation metadata
+  - **DYNAMIC BADGE POSITIONING**: Badges positioned elegantly within each service card with proper spacing and styling
+  - **AUTHENTICATED DATA FLOW**: Fixed authentication token issues (corrected from 'token' to 'auth_token') for proper API access
+  - **ENRICHED SERVICE DATA**: Services automatically enriched with recommendation data throughout the application for consistent display
