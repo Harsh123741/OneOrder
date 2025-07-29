@@ -239,16 +239,6 @@ export default function Services() {
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshPricing}
-                  disabled={servicesLoading}
-                  className="flex items-center space-x-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${servicesLoading ? 'animate-spin' : ''}`} />
-                  <span>Refresh Prices</span>
-                </Button>
                 <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
                   <Users className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800">
