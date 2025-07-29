@@ -290,18 +290,44 @@ export default function CompletePayment() {
               <div className="space-y-2">
                 <h4 className="font-semibold">Flight Details</h4>
                 <div className="bg-gray-50 p-3 rounded-lg">
-                  <div className="text-sm text-gray-600">
-                    Flight:{" "}
-                    <span className="font-medium text-gray-900">
-                      {typedOrder.flightNumber}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    Route:{" "}
-                    <span className="font-medium text-gray-900">
-                      {typedOrder.route}
-                    </span>
-                  </div>
+                  {typedOrder.flightDetails ? (
+                    <>
+                      <div className="text-sm text-gray-600">
+                        Flight:{" "}
+                        <span className="font-medium text-gray-900">
+                          {typedOrder.flightDetails.airline} {typedOrder.flightDetails.flightNumber}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Route:{" "}
+                        <span className="font-medium text-gray-900">
+                          {typedOrder.flightDetails.departureAirport} → {typedOrder.flightDetails.arrivalAirport}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Date:{" "}
+                        <span className="font-medium text-gray-900">
+                          {new Date(typedOrder.flightDetails.departureTime).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Time:{" "}
+                        <span className="font-medium text-gray-900">
+                          {new Date(typedOrder.flightDetails.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(typedOrder.flightDetails.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Class:{" "}
+                        <span className="font-medium text-gray-900 capitalize">
+                          {typedOrder.flightDetails.class?.replace('_', ' ') || 'Economy'}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-gray-600">
+                      Flight details not available
+                    </div>
+                  )}
                 </div>
               </div>
 
