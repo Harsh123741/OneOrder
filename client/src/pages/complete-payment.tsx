@@ -66,6 +66,46 @@ export default function CompletePayment() {
   // Type guard for order
   const typedOrder = order as any;
 
+  // Calculate remaining payment time
+  const getRemainingPaymentTime = () => {
+    if (!typedOrder?.createdAt) return null;
+    
+    const createdAt = new Date(typedOrder.createdAt);
+    const currentTime = new Date();
+    const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
+    const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+    
+    return {
+      isExpired: remainingMinutes <= 0,
+      remainingMinutes: Math.floor(remainingMinutes),
+      remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
+    };
+  };
+
+  const [paymentTimer, setPaymentTimer] = useState(getRemainingPaymentTime());
+
+  // Update timer every second
+  useEffect(() => {
+    if (!typedOrder?.createdAt) return;
+    
+    const interval = setInterval(() => {
+      const timeInfo = getRemainingPaymentTime();
+      setPaymentTimer(timeInfo);
+      
+      // Redirect if expired
+      if (timeInfo?.isExpired) {
+        toast({
+          title: "Payment Window Expired",
+          description: "This order has expired. Please create a new booking.",
+          variant: "destructive",
+        });
+        setLocation("/");
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [typedOrder?.createdAt, setLocation, toast]);
+
   const completePaymentMutation = useMutation({
     mutationFn: async (paymentData: PaymentFormData) => {
       const response = await apiRequest(
@@ -93,14 +133,26 @@ export default function CompletePayment() {
       // Invalidate order queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
 
-      // Redirect to order details
-      setLocation(`/order-details/${data.orderNumber}`);
+      // Redirect to order success page
+      setLocation(`/order-success/${data.orderNumber}`);
     },
     onError: (error: any) => {
+      const errorMessage = error.message || "There was an error processing your payment.";
+      
+      // Handle payment window expiry
+      if (error.message?.includes("Payment window expired")) {
+        toast({
+          title: "Payment Window Expired",
+          description: "This order has expired. Please create a new booking.",
+          variant: "destructive",
+        });
+        setTimeout(() => setLocation("/"), 2000); // Redirect after showing error
+        return;
+      }
+      
       toast({
         title: "Payment Failed",
-        description:
-          error.message || "There was an error processing your payment.",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -195,6 +247,21 @@ export default function CompletePayment() {
           <p className="text-gray-600">
             Complete your booking payment to confirm your order
           </p>
+          
+          {/* Payment Timer */}
+          {paymentTimer && !paymentTimer.isExpired && (
+            <div className="mt-4 bg-orange-100 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                <p className="text-orange-800 font-medium">
+                  Payment window expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s
+                </p>
+              </div>
+              <p className="text-orange-700 text-sm mt-1">
+                Complete payment within 30 minutes of order creation to secure your booking.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -163,6 +163,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Order is not pending payment" });
       }
 
+      // Check if payment window is still valid (30 minutes from order creation)
+      const orderCreatedAt = new Date(order.createdAt);
+      const currentTime = new Date();
+      const timeDifferenceInMinutes = (currentTime.getTime() - orderCreatedAt.getTime()) / (1000 * 60);
+      
+      if (timeDifferenceInMinutes > 30) {
+        // Cancel the expired order
+        await storage.updateOrder(order.id, { 
+          status: "cancelled", 
+          paymentStatus: "cancelled" 
+        });
+        return res.status(400).json({ 
+          error: "Payment window expired", 
+          message: "This order has expired. Payment must be completed within 30 minutes of order creation. Please create a new booking."
+        });
+      }
+
       // Validate wallet balance if using wallet payment
       if (paymentMethod === "wallet") {
         const user = await storage.getUser(req.user.userId);

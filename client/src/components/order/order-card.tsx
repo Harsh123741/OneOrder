@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plane, Calendar, Users, CreditCard } from "lucide-react";
+import { Plane, Calendar, Users, CreditCard, Clock } from "lucide-react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 
 interface OrderCardProps {
   order: any;
@@ -22,6 +23,37 @@ export default function OrderCard({
   onCancel,
 }: OrderCardProps) {
   const [, setLocation] = useLocation();
+
+  // Payment timer state
+  const [paymentTimer, setPaymentTimer] = useState<{
+    isExpired: boolean;
+    remainingMinutes: number;
+    remainingSeconds: number;
+  } | null>(null);
+
+  // Calculate remaining payment time for pending orders
+  useEffect(() => {
+    if (order.status === "pending_payment" && order.createdAt) {
+      const updateTimer = () => {
+        const createdAt = new Date(order.createdAt);
+        const currentTime = new Date();
+        const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
+        const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+        
+        setPaymentTimer({
+          isExpired: remainingMinutes <= 0,
+          remainingMinutes: Math.floor(remainingMinutes),
+          remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
+        });
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setPaymentTimer(null);
+    }
+  }, [order.status, order.createdAt]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -84,14 +116,14 @@ export default function OrderCard({
 
   // Get flight information - use flight data if available, otherwise use order details
   const safeFlightInfo = {
-    flightNumber: flight?.flightNumber || order.flightNumber || "N/A",
-    airline: flight?.airline || order.airline || "N/A",
+    flightNumber: (flight as any)?.flightNumber || (order as any).flightNumber || "N/A",
+    airline: (flight as any)?.airline || (order as any).airline || "N/A",
     departureAirport:
-      flight?.departureAirport || order.departureAirport || "N/A",
-    arrivalAirport: flight?.arrivalAirport || order.arrivalAirport || "N/A",
+      (flight as any)?.departureAirport || (order as any).departureAirport || "N/A",
+    arrivalAirport: (flight as any)?.arrivalAirport || (order as any).arrivalAirport || "N/A",
     departureTime:
-      flight?.departureTime || order.departureTime || new Date().toISOString(),
-    duration: flight?.duration || order.duration || "N/A",
+      (flight as any)?.departureTime || (order as any).departureTime || new Date().toISOString(),
+    duration: (flight as any)?.duration || (order as any).duration || "N/A",
   };
 
   return (
@@ -242,8 +274,9 @@ export default function OrderCard({
                   setLocation(`/complete-payment/${order.orderNumber}`)
                 }
                 className="border border-green-600 bg-white text-green-600 hover:bg-green-50"
+                disabled={paymentTimer?.isExpired}
               >
-                Complete Payment
+                {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
               </Button>
               <Button
                 onClick={handleCancel}
@@ -255,6 +288,36 @@ export default function OrderCard({
             </>
           )}
         </div>
+
+        {/* Payment Timer Notice */}
+        {paymentTimer && !paymentTimer.isExpired && order.paymentStatus === "pending" && (
+          <div className="mt-4 p-3 bg-orange-100 border border-orange-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-orange-600" />
+              <p className="text-sm text-orange-800">
+                <strong>Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s</strong>
+              </p>
+            </div>
+            <p className="text-xs text-orange-700 mt-1">
+              Complete payment within 30 minutes to secure your booking.
+            </p>
+          </div>
+        )}
+
+        {/* Payment Expired Notice */}
+        {paymentTimer?.isExpired && order.paymentStatus === "pending" && (
+          <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-red-600" />
+              <p className="text-sm text-red-800">
+                <strong>Payment window expired</strong>
+              </p>
+            </div>
+            <p className="text-xs text-red-700 mt-1">
+              This order has expired. Please create a new booking.
+            </p>
+          </div>
+        )}
 
         {/* Check-in Available Notice */}
         {order.canCheckIn && !order.isCheckedIn && (

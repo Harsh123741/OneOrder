@@ -24,7 +24,7 @@ import {
   Wallet,
   Shield,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -132,6 +132,37 @@ export default function OrderDetails() {
     zipCode: "",
     country: "",
   });
+
+  // Payment timer state
+  const [paymentTimer, setPaymentTimer] = useState<{
+    isExpired: boolean;
+    remainingMinutes: number;
+    remainingSeconds: number;
+  } | null>(null);
+
+  // Calculate remaining payment time for pending orders
+  useEffect(() => {
+    if (order?.status === "pending_payment" && order?.createdAt) {
+      const updateTimer = () => {
+        const createdAt = new Date(order.createdAt);
+        const currentTime = new Date();
+        const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
+        const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+        
+        setPaymentTimer({
+          isExpired: remainingMinutes <= 0,
+          remainingMinutes: Math.floor(remainingMinutes),
+          remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
+        });
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setPaymentTimer(null);
+    }
+  }, [order?.status, order?.createdAt]);
 
   const { data: services } = useQuery({
     queryKey: ["/api/services"],
@@ -469,15 +500,31 @@ export default function OrderDetails() {
                 {/* Complete Payment Button for Pending Orders */}
                 {order?.status === "pending" &&
                   order?.paymentStatus === "pending" && (
-                    <Button
-                      onClick={() =>
-                        setLocation(`/complete-payment/${order.orderNumber}`)
-                      }
-                      className="mt-3 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Complete Payment
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() =>
+                          setLocation(`/complete-payment/${order.orderNumber}`)
+                        }
+                        className="mt-3 bg-green-600 hover:bg-green-700 text-white"
+                        disabled={paymentTimer?.isExpired}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
+                      </Button>
+                      
+                      {/* Payment Timer Display */}
+                      {paymentTimer && !paymentTimer.isExpired && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s
+                        </p>
+                      )}
+                      
+                      {paymentTimer?.isExpired && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Payment window expired - please create a new booking
+                        </p>
+                      )}
+                    </>
                   )}
               </div>
             </div>
@@ -1621,15 +1668,41 @@ export default function OrderDetails() {
           {/* Complete Payment Button for Pending Orders */}
           {order?.status === "pending" &&
             order?.paymentStatus === "pending" && (
-              <Button
-                onClick={() =>
-                  setLocation(`/complete-payment/${order.orderNumber}`)
-                }
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CreditCard className="w-4 h-4 mr-2" />
-                Complete Payment
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  onClick={() =>
+                    setLocation(`/complete-payment/${order.orderNumber}`)
+                  }
+                  className="bg-green-600 hover:bg-green-700 text-white w-full"
+                  disabled={paymentTimer?.isExpired}
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
+                </Button>
+                
+                {/* Payment Timer Display */}
+                {paymentTimer && !paymentTimer.isExpired && (
+                  <div className="bg-orange-100 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-orange-600" />
+                      <p className="text-sm text-orange-800">
+                        Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {paymentTimer?.isExpired && (
+                  <div className="bg-red-100 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-red-600" />
+                      <p className="text-sm text-red-800">
+                        Payment window expired - please create a new booking
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
           {/* Confirmed Order Actions */}
