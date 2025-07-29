@@ -612,15 +612,44 @@ export class DatabaseStorage implements IStorage {
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     const orderNumber = `SL${Date.now().toString().slice(-6)}`;
     
-    // Auto-assign random seats for all passengers
+    // Create order with pending status - do NOT reserve seats/services yet
+    const [order] = await db
+      .insert(orders)
+      .values({
+        ...insertOrder,
+        orderNumber,
+        status: "pending",
+        paymentStatus: "pending",
+        assignedSeats: [], // Empty until payment is completed
+      })
+      .returning();
+    return order;
+  }
+
+  // New method to complete payment and reserve seats/services
+  async completeOrderPayment(orderId: number, paymentDetails: any): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!order) return undefined;
+
+    if (order.status !== "pending" || order.paymentStatus !== "pending") {
+      throw new Error("Order is not in pending payment status");
+    }
+
+    console.log(`Completing payment for order ${order.orderNumber} - reserving seats and services`);
+    
+    // Now reserve seats for all passengers
     let assignedSeats: any[] = [];
-    if (insertOrder.flightId && insertOrder.passengerInfo) {
-      const passengers = insertOrder.passengerInfo as any[];
-      const availableSeats = await this.getFlightSeats(insertOrder.flightId);
+    if (order.flightId && order.passengerInfo) {
+      const passengers = order.passengerInfo as any[];
+      const availableSeats = await this.getFlightSeats(order.flightId);
       const economySeats = availableSeats.filter(seat => 
         seat.isAvailable && seat.seatType === 'economy' && !seat.isExtraLegroom
       );
       
+      if (economySeats.length < passengers.length) {
+        throw new Error("Not enough available seats for all passengers");
+      }
+
       // Randomly assign seats to passengers
       const shuffledSeats = [...economySeats].sort(() => Math.random() - 0.5);
       assignedSeats = passengers.map((passenger, index) => ({
@@ -636,19 +665,54 @@ export class DatabaseStorage implements IStorage {
       for (const seatAssignment of assignedSeats) {
         if (seatAssignment.seatId) {
           await this.updateSeatAvailability(seatAssignment.seatId, false);
+          console.log(`Reserved seat: ${seatAssignment.seatNumber} for passenger: ${seatAssignment.passengerName}`);
+        }
+      }
+    }
+
+    // Update service inventory for selected services
+    if (order.selectedServices && Array.isArray(order.selectedServices)) {
+      for (const service of order.selectedServices as any[]) {
+        const serviceData = await this.getService(service.id);
+        if (serviceData && serviceData.inventory !== null) {
+          const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+          await this.updateServiceInventory(service.id, newInventory);
+          console.log(`Updated service inventory: ${service.name} -> ${newInventory}`);
+        }
+      }
+    }
+
+    // Update passenger-specific services inventory
+    if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+      for (const passenger of order.passengerInfo as any[]) {
+        if (passenger.services && Array.isArray(passenger.services)) {
+          for (const service of passenger.services) {
+            const serviceData = await this.getService(service.id);
+            if (serviceData && serviceData.inventory !== null) {
+              const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+              await this.updateServiceInventory(service.id, newInventory);
+              console.log(`Updated passenger service inventory: ${service.name} -> ${newInventory}`);
+            }
+          }
         }
       }
     }
     
-    const [order] = await db
-      .insert(orders)
-      .values({
-        ...insertOrder,
-        orderNumber,
+    // Update order status to confirmed with payment details
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({ 
+        status: "confirmed",
+        paymentStatus: "paid",
+        canCheckIn: true,
         assignedSeats,
+        paymentMethod: paymentDetails.paymentMethod,
+        paymentDetails: paymentDetails,
       })
+      .where(eq(orders.id, orderId))
       .returning();
-    return order;
+    
+    return updatedOrder;
   }
 
   async updateOrder(id: number, updates: any): Promise<Order | undefined> {

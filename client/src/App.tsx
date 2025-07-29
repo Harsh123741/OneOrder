@@ -17,6 +17,7 @@ import Booking from "@/pages/booking";
 import Services from "@/pages/services";
 import Checkout from "@/pages/checkout";
 import Payment from "@/pages/payment";
+import CompletePayment from "@/pages/complete-payment";
 import OrderSuccess from "@/pages/order-success";
 import OrderDetails from "@/pages/order-details";
 import MyOrders from "@/pages/my-orders";
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/services" component={Services} />
       <Route path="/checkout" component={Checkout} />
       <Route path="/payment" component={Payment} />
+      <Route path="/complete-payment/:orderNumber" component={CompletePayment} />
       <Route path="/order-success/:orderNumber" component={OrderSuccess} />
       <Route path="/order/:orderNumber" component={OrderDetails} />
       <Route path="/my-orders" component={MyOrders} />

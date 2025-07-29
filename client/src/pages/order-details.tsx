@@ -439,6 +439,17 @@ export default function OrderDetails() {
                     {order?.total ? parseFloat(order.total).toFixed(2) : "0.00"}
                   </span>
                 </p>
+                
+                {/* Complete Payment Button for Pending Orders */}
+                {order?.status === "pending" && order?.paymentStatus === "pending" && (
+                  <Button
+                    onClick={() => setLocation(`/complete-payment/${order.orderNumber}`)}
+                    className="mt-3 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Complete Payment
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>
@@ -1451,6 +1462,18 @@ export default function OrderDetails() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Complete Payment Button for Pending Orders */}
+          {order?.status === "pending" && order?.paymentStatus === "pending" && (
+            <Button
+              onClick={() => setLocation(`/complete-payment/${order.orderNumber}`)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Complete Payment
+            </Button>
+          )}
+
+          {/* Confirmed Order Actions */}
           {order?.status === "confirmed" && !order?.isCheckedIn && (
             <>
               <Button
@@ -1494,6 +1517,18 @@ export default function OrderDetails() {
             </Button>
           )}
         </div>
+
+        {/* Payment Pending Notice */}
+        {order?.status === "pending" && order?.paymentStatus === "pending" && (
+          <Card className="mt-6 border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-sm text-red-800">
+                <strong>Payment Required!</strong> Your order is pending payment completion. 
+                Seats and services will be reserved once payment is processed.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Check-in Available Notice */}
         {order?.canCheckIn && !order?.isCheckedIn && (

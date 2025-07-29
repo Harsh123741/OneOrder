@@ -153,6 +153,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      // Ensure user owns the order
+      if (order.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Check if order is in pending payment status
+      if (order.status !== "pending" || order.paymentStatus !== "pending") {
+        return res.status(400).json({ error: "Order is not pending payment" });
+      }
+
+      // Validate wallet balance if using wallet payment
+      if (paymentMethod === "wallet") {
+        const user = await storage.getUser(req.user.userId);
+        if (!user || parseFloat(user.walletBalance || "0") < parseFloat(order.total)) {
+          return res.status(400).json({ error: "Insufficient wallet balance" });
+        }
+        
+        // Deduct from wallet
+        await storage.addWalletTransaction(
+          req.user.userId, 
+          parseFloat(order.total), 
+          'debit', 
+          `Payment for order ${order.orderNumber}`
+        );
+      }
+
+      // Complete payment and reserve seats/services using new method
+      const updatedOrder = await storage.completeOrderPayment(order.id, {
+        paymentMethod,
+        paymentDetails
+      });
+
+      if (!updatedOrder) {
+        return res.status(500).json({ error: "Failed to complete payment and reserve seats" });
+      }
+
       // Update loyalty stats when payment is completed
       if (order.userId && order.flightId) {
         const flight = await storage.getFlight(order.flightId);
@@ -161,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Record booking with dynamic pricing service and update flight inventory
+      // Record booking with dynamic pricing service
       if (order.flightId) {
         try {
           // Calculate passenger count for flight booking
@@ -198,15 +234,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Don't fail the order if pricing update fails
         }
       }
-
-      // Update order status to confirmed
-      const updatedOrder = await storage.updateOrder(order.id, {
-        status: "confirmed",
-        paymentStatus: "paid",
-        canCheckIn: true,
-        paymentMethod: paymentMethod,
-        paymentDetails: paymentDetails,
-      });
 
       res.json(updatedOrder);
     } catch (error: any) {
