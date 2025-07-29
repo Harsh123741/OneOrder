@@ -224,13 +224,21 @@ export default function OrderCard({
           )}
 
           {order.status === "pending" && (
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              className="text-red-600 border-red-600 hover:bg-red-50"
-            >
-              Cancel Booking
-            </Button>
+            <>
+              <Button
+                onClick={() => setLocation(`/complete-payment/${order.orderNumber}`)}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Complete Payment
+              </Button>
+              <Button
+                onClick={handleCancel}
+                variant="outline"
+                className="text-red-600 border-red-600 hover:bg-red-50"
+              >
+                Cancel Booking
+              </Button>
+            </>
           )}
         </div>
 

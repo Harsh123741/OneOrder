@@ -1505,6 +1505,17 @@ export default function OrderDetails() {
             Download E-Ticket
           </Button>
 
+          {/* Complete Payment Button below Download E-Ticket for pending orders */}
+          {order?.status === "pending" && order?.paymentStatus === "pending" && (
+            <Button
+              onClick={() => setLocation(`/complete-payment/${order.orderNumber}`)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Complete Payment
+            </Button>
+          )}
+
           {(order?.status === "confirmed" || order?.status === "pending") && (
             <Button
               onClick={handleCancel}
