@@ -12,6 +12,7 @@ interface CartState {
   addItem: (item: CartItem) => Promise<void>;
   removeItem: (id: string, isUserInitiated?: boolean) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
+  updateItemDetails: (id: string, details: Partial<CartItem>) => Promise<void>;
   clearCart: (isCheckoutFlow?: boolean) => Promise<void>;
   syncCart: () => Promise<void>;
   loadCartFromStorage: () => Promise<void>;
@@ -236,6 +237,38 @@ export const useCartStore = create<CartState>()(
               item.id === id ? { ...item, quantity } : item
             ),
           }));
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      
+      updateItemDetails: async (id, details) => {
+        try {
+          set({ isLoading: true });
+          const currentUserId = get().currentUserId;
+          
+          // Update local state first
+          set((state) => ({
+            items: state.items.map(item =>
+              item.id === id ? { ...item, ...details } : item
+            ),
+          }));
+          
+          // Update database if authenticated
+          if (currentUserId && isAuthenticated(currentUserId)) {
+            const currentItems = get().items;
+            const item = currentItems.find(i => i.id === id);
+            
+            if (item && item.databaseId) {
+              const updateData = {
+                price: details.price?.toString() || item.price.toString(),
+                details: details.details ? { ...item.details, ...details.details } : item.details,
+              };
+              await apiRequest('PUT', `/api/cart/${item.databaseId}`, updateData);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to update item details:', error);
         } finally {
           set({ isLoading: false });
         }

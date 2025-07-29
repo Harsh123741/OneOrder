@@ -9,7 +9,7 @@ interface CartRefreshProps {
 }
 
 export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshProps) {
-  const { items } = useCart();
+  const { items, updateItemDetails } = useCart();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -27,13 +27,20 @@ export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshPro
               const newPrice = updatedService.dynamicPricing.currentPrice;
               
               // Check if price changed
-              if (oldPrice !== newPrice) {
+              if (Math.abs(oldPrice - newPrice) > 0.01) {
                 const difference = newPrice - oldPrice;
                 const isIncrease = difference > 0;
                 
-                // Note: Cart store doesn't have updateItemDetails method
-                // Price updates will be reflected when items are re-added or cart is refreshed
-                console.log(`Price changed for ${item.name}: ${oldPrice} -> ${newPrice}`);
+                console.log(`Cart price update for ${item.name}: ${oldPrice} -> ${newPrice}`);
+                
+                // Update cart item with new pricing information
+                await updateItemDetails(item.id, {
+                  price: newPrice,
+                  details: {
+                    ...item.details,
+                    dynamicPricing: updatedService.dynamicPricing
+                  }
+                });
                 
                 // Notify user of price change
                 toast({
@@ -54,7 +61,7 @@ export function CartRefresh({ enabled = true, interval = 60000 }: CartRefreshPro
     const intervalId = setInterval(refreshCartPricing, interval);
     
     return () => clearInterval(intervalId);
-  }, [items, enabled, interval, toast]);
+  }, [items, enabled, interval, toast, updateItemDetails]);
 
   return null; // This component doesn't render anything
 }
