@@ -1107,32 +1107,49 @@ export class DatabaseStorage implements IStorage {
     const user = await this.getUser(userId);
     if (!user) return;
 
-    // Calculate miles earned (simplified - in reality would use flight distance)
-    const milesEarned = Math.round(parseFloat(flight.price) * 2); // 2 miles per dollar spent
+    // Calculate miles earned based on actual flight distance
+    const flightDistance = this.calculateFlightDistance(flight.departureAirport, flight.arrivalAirport);
+    const milesEarned = Math.round(flightDistance);
     
     // Calculate points earned with tier multiplier
     const tier = await this.getLoyaltyTier(user.loyaltyTier);
     const multiplier = tier ? parseFloat(tier.multiplier) : 1.0;
-    const basePoints = Math.round(parseFloat(order.total) * 10); // 10 points per dollar
-    const pointsEarned = Math.round(basePoints * multiplier);
+    
+    // Points from spending: 10 base points per dollar + tier multiplier
+    const spendingPoints = Math.round(parseFloat(order.total) * 10 * multiplier);
+    
+    // Points from distance: 1 point per mile flown + tier multiplier
+    const distancePoints = Math.round(flightDistance * 1 * multiplier);
+    
+    const totalPointsEarned = spendingPoints + distancePoints;
 
     // Update user loyalty stats
     await this.updateUser(userId, {
-      loyaltyPoints: user.loyaltyPoints + pointsEarned,
+      loyaltyPoints: user.loyaltyPoints + totalPointsEarned,
       totalMilesFlown: user.totalMilesFlown + milesEarned,
       totalSpent: (parseFloat(user.totalSpent) + parseFloat(order.total)).toFixed(2),
       lifetimeMiles: user.lifetimeMiles + milesEarned,
     });
 
-    // Create points transaction record
+    // Create points transaction records
     await this.createPointsTransaction({
       userId,
       orderId: order.id,
       transactionType: 'earned',
-      points: pointsEarned,
-      description: `Points earned from booking ${order.orderNumber}`,
+      points: spendingPoints,
+      description: `Points from spending: $${order.total} × 10 pts/$ × ${multiplier}x tier bonus`,
       multiplier: multiplier.toFixed(2),
-      basePoints,
+      basePoints: Math.round(parseFloat(order.total) * 10),
+    });
+
+    await this.createPointsTransaction({
+      userId,
+      orderId: order.id,
+      transactionType: 'earned',
+      points: distancePoints,
+      description: `Points from distance: ${flightDistance} miles × 1 pt/mile × ${multiplier}x tier bonus`,
+      multiplier: multiplier.toFixed(2),
+      basePoints: Math.round(flightDistance),
     });
 
     // Check for tier upgrade
@@ -1190,6 +1207,46 @@ export class DatabaseStorage implements IStorage {
       'diamond': 25000,
     };
     return bonuses[tierName] || 0;
+  }
+
+  private calculateFlightDistance(departure: string, arrival: string): number {
+    // Airport coordinates database for major airports (simplified)
+    const airportCoords: { [key: string]: { lat: number; lng: number } } = {
+      'JFK': { lat: 40.6413, lng: -73.7781 },
+      'LAX': { lat: 33.9425, lng: -118.4081 },
+      'ORD': { lat: 41.9742, lng: -87.9073 },
+      'DFW': { lat: 32.8998, lng: -97.0403 },
+      'DEN': { lat: 39.8617, lng: -104.6737 },
+      'ATL': { lat: 33.6367, lng: -84.4281 },
+      'SFO': { lat: 37.6213, lng: -122.3790 },
+      'SEA': { lat: 47.4502, lng: -122.3088 }
+    };
+
+    const depCoords = airportCoords[departure];
+    const arrCoords = airportCoords[arrival];
+
+    if (!depCoords || !arrCoords) {
+      // Fallback: estimate based on average domestic flight (1,000 miles)
+      return 1000;
+    }
+
+    // Haversine formula for great circle distance
+    const R = 3959; // Earth's radius in miles
+    const dLat = this.degreesToRadians(arrCoords.lat - depCoords.lat);
+    const dLng = this.degreesToRadians(arrCoords.lng - depCoords.lng);
+    
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.degreesToRadians(depCoords.lat)) * Math.cos(this.degreesToRadians(arrCoords.lat)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return Math.round(distance);
+  }
+
+  private degreesToRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 
   async getBundleDiscountForTier(tierName: string, phase: string = 'booking'): Promise<{bundles: LoyaltyBundle[], totalDiscount: number}> {

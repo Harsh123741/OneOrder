@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
+import LoyaltyTierDisplay from "@/components/loyalty-tier-display";
 import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ export default function Services() {
   const [passengerCount, setPassengerCount] = useState(1);
   const [currentPassenger, setCurrentPassenger] = useState(0);
   const [passengerServices, setPassengerServices] = useState<{[key: number]: any[]}>({});
+  const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
   const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -81,6 +83,31 @@ export default function Services() {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     retry: 2
   });
+
+  // Fetch user's loyalty status and available bundles
+  const { data: loyaltyStatus }: { data: any } = useQuery({
+    queryKey: ['/api/loyalty/user', user?.id, 'status'],
+    enabled: !!user && isAuthenticated,
+  });
+
+  const { data: loyaltyBundles = [] }: { data: any[] } = useQuery({
+    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName],
+    queryFn: async () => {
+      if (!loyaltyStatus?.currentTier?.tierName) return [];
+      const response = await fetch(`/api/loyalty/bundles/${loyaltyStatus.currentTier.tierName}?phase=booking`);
+      return response.json();
+    },
+    enabled: !!loyaltyStatus?.currentTier?.tierName,
+  });
+
+  // Handle loyalty bundle selection
+  const handleBundleToggle = (bundleId: number) => {
+    setSelectedLoyaltyBundles(prev => 
+      prev.includes(bundleId) 
+        ? prev.filter(id => id !== bundleId)
+        : [...prev, bundleId]
+    );
+  };
 
   // Function to enrich services with recommendation data
   const enrichServicesWithRecommendations = (services: any[]) => {
@@ -359,6 +386,17 @@ export default function Services() {
           </CardContent>
         </Card>
 
+        {/* Loyalty Tier Display */}
+        {loyaltyStatus && loyaltyBundles.length > 0 && (
+          <LoyaltyTierDisplay
+            loyaltyStatus={loyaltyStatus}
+            loyaltyBundles={loyaltyBundles}
+            selectedBundles={selectedLoyaltyBundles}
+            onBundleToggle={handleBundleToggle}
+            className="mb-8"
+          />
+        )}
+
         {/* Recommended Services Section */}
         <RecommendedServicesSection />
 
@@ -450,7 +488,7 @@ export default function Services() {
                     ))}
                 </div>
 
-                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
+                {filteredServices.filter((service: any) => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
@@ -510,7 +548,7 @@ export default function Services() {
                     ))}
                 </div>
 
-                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
+                {filteredServices.filter((service: any) => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
