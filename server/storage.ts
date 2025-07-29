@@ -648,7 +648,7 @@ export class DatabaseStorage implements IStorage {
     
     // Set payment expiration to 15 minutes from now
     const paymentExpiresAt = new Date();
-    paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 1);
+    paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 15);
     
     // Create order with pending status - do NOT reserve seats/services yet
     const [order] = await db

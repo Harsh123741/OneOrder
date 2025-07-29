@@ -66,14 +66,14 @@ export default function CompletePayment() {
   // Type guard for order
   const typedOrder = order as any;
 
-  // Calculate remaining payment time
+  // Calculate remaining payment time using paymentExpiresAt
   const getRemainingPaymentTime = () => {
-    if (!typedOrder?.createdAt) return null;
+    if (!typedOrder?.paymentExpiresAt) return null;
     
-    const createdAt = new Date(typedOrder.createdAt);
+    const expiresAt = new Date(typedOrder.paymentExpiresAt);
     const currentTime = new Date();
-    const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
-    const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+    const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
+    const remainingMinutes = remainingTime / (1000 * 60);
     
     return {
       isExpired: remainingMinutes <= 0,
@@ -86,7 +86,7 @@ export default function CompletePayment() {
 
   // Update timer every second
   useEffect(() => {
-    if (!typedOrder?.createdAt) return;
+    if (!typedOrder?.paymentExpiresAt) return;
     
     const interval = setInterval(() => {
       const timeInfo = getRemainingPaymentTime();
@@ -104,7 +104,7 @@ export default function CompletePayment() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [typedOrder?.createdAt, setLocation, toast]);
+  }, [typedOrder?.paymentExpiresAt, setLocation, toast]);
 
   const completePaymentMutation = useMutation({
     mutationFn: async (paymentData: PaymentFormData) => {

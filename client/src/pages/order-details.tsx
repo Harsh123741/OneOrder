@@ -140,17 +140,18 @@ export default function OrderDetails() {
     remainingSeconds: number;
   } | null>(null);
 
-  // Calculate remaining payment time for pending orders
+  // Calculate remaining payment time for pending orders using paymentExpiresAt
   useEffect(() => {
-    if ((order?.status === "pending_payment" || order?.status === "pending") && order?.createdAt) {
+    if ((order?.status === "pending_payment" || order?.status === "pending") && order?.paymentExpiresAt) {
       const updateTimer = () => {
-        const createdAt = new Date(order.createdAt);
+        const expiresAt = new Date(order.paymentExpiresAt);
         const currentTime = new Date();
-        const elapsedMinutes = (currentTime.getTime() - createdAt.getTime()) / (1000 * 60);
-        const remainingMinutes = Math.max(0, 30 - elapsedMinutes);
+        const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
+        const remainingMinutes = remainingTime / (1000 * 60);
+        const isExpired = remainingMinutes <= 0;
         
         setPaymentTimer({
-          isExpired: remainingMinutes <= 0,
+          isExpired,
           remainingMinutes: Math.floor(remainingMinutes),
           remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
         });
@@ -162,7 +163,7 @@ export default function OrderDetails() {
     } else {
       setPaymentTimer(null);
     }
-  }, [order?.status, order?.createdAt]);
+  }, [order?.status, order?.paymentExpiresAt]);
 
   const { data: services } = useQuery({
     queryKey: ["/api/services"],
