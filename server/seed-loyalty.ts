@@ -40,7 +40,7 @@ const loyaltyTiersSeed: InsertLoyaltyTier[] = [
   },
   {
     tierName: "gold",
-    displayName: "Gold Premier",
+    displayName: "Gold Tier",
     minPoints: 50000,
     minMiles: 50000,
     minSpend: "6000.00",

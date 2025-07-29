@@ -26,6 +26,7 @@ import CheckIn from "@/pages/check-in";
 import BoardingPassSuccess from "@/pages/boarding-pass-success";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -46,6 +47,7 @@ function Router() {
       <Route path="/boarding-pass-success" component={BoardingPassSuccess} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

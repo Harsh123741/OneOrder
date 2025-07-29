@@ -2084,6 +2084,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upgrade user tier
+  app.post('/api/loyalty/upgrade-tier', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const eligibility = await storage.calculateTierEligibility(userId);
+      
+      if (!eligibility.qualified) {
+        return res.status(400).json({ error: 'User does not qualify for tier upgrade' });
+      }
+
+      await storage.upgradeUserTier(userId, eligibility.suggestedTier);
+      
+      res.json({ 
+        success: true, 
+        newTier: eligibility.suggestedTier,
+        message: 'Tier upgraded successfully'
+      });
+    } catch (error) {
+      console.error('Error upgrading tier:', error);
+      res.status(500).json({ error: 'Failed to upgrade tier' });
+    }
+  });
+
   // Cart Management Routes
   app.get("/api/cart", authenticateToken, async (req: any, res) => {
     try {

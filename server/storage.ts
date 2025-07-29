@@ -1077,22 +1077,24 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Calculate progress to next tier
-    const nextTierIndex = tiers.findIndex(t => t.tierName === qualifiedTier.tierName) + 1;
-    const nextTier = nextTierIndex < tiers.length ? tiers[nextTierIndex] : null;
+    const tiersOrdered = await this.getLoyaltyTiers(); // Get in ascending order: bronze, silver, gold, platinum, diamond
+    const currentTierIndex = tiersOrdered.findIndex(t => t.tierName === qualifiedTier.tierName);
+    const nextTier = currentTierIndex < tiersOrdered.length - 1 ? tiersOrdered[currentTierIndex + 1] : null;
     
     let progressToNext = null;
     if (nextTier) {
+      // Calculate progress as the closest to achieving next tier (minimum qualification)
+      const pointsProgress = Math.min(100, (user.loyaltyPoints / nextTier.minPoints) * 100);
+      const milesProgress = Math.min(100, (user.totalMilesFlown / nextTier.minMiles) * 100);
+      const spendProgress = Math.min(100, (parseFloat(user.totalSpent) / parseFloat(nextTier.minSpend)) * 100);
+      
       progressToNext = {
         tierName: nextTier.tierName,
         displayName: nextTier.displayName,
         pointsNeeded: Math.max(0, nextTier.minPoints - user.loyaltyPoints),
         milesNeeded: Math.max(0, nextTier.minMiles - user.totalMilesFlown),
         spendNeeded: Math.max(0, parseFloat(nextTier.minSpend) - parseFloat(user.totalSpent)),
-        progressPercentage: Math.max(
-          (user.loyaltyPoints / nextTier.minPoints) * 100,
-          (user.totalMilesFlown / nextTier.minMiles) * 100,
-          (parseFloat(user.totalSpent) / parseFloat(nextTier.minSpend)) * 100
-        )
+        progressPercentage: Math.max(pointsProgress, milesProgress, spendProgress)
       };
     }
 
@@ -1115,11 +1117,13 @@ export class DatabaseStorage implements IStorage {
     const tier = await this.getLoyaltyTier(user.loyaltyTier);
     const multiplier = tier ? parseFloat(tier.multiplier) : 1.0;
     
-    // Points from spending: 10 base points per dollar + tier multiplier
-    const spendingPoints = Math.round(parseFloat(order.total) * 10 * multiplier);
+    // Points from spending: base points per dollar varies by tier (lower tiers get fewer points)
+    const basePointsPerDollar = this.getBasePointsPerDollar(user.loyaltyTier);
+    const spendingPoints = Math.round(parseFloat(order.total) * basePointsPerDollar * multiplier);
     
-    // Points from distance: 1 point per mile flown + tier multiplier
-    const distancePoints = Math.round(flightDistance * 1 * multiplier);
+    // Points from distance: base points per mile varies by tier (lower tiers get fewer points)
+    const basePointsPerMile = this.getBasePointsPerMile(user.loyaltyTier);
+    const distancePoints = Math.round(flightDistance * basePointsPerMile * multiplier);
     
     const totalPointsEarned = spendingPoints + distancePoints;
 
@@ -1247,6 +1251,30 @@ export class DatabaseStorage implements IStorage {
 
   private degreesToRadians(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  private getBasePointsPerDollar(tierName: string): number {
+    // Lower tiers earn fewer base points per dollar spent
+    const basePoints: { [key: string]: number } = {
+      'bronze': 5,    // 5 points per dollar
+      'silver': 7,    // 7 points per dollar
+      'gold': 10,     // 10 points per dollar
+      'platinum': 12, // 12 points per dollar
+      'diamond': 15   // 15 points per dollar
+    };
+    return basePoints[tierName] || 5;
+  }
+
+  private getBasePointsPerMile(tierName: string): number {
+    // Lower tiers earn fewer base points per mile flown
+    const basePoints: { [key: string]: number } = {
+      'bronze': 0.5,  // 0.5 points per mile
+      'silver': 0.75, // 0.75 points per mile
+      'gold': 1.0,    // 1 point per mile
+      'platinum': 1.25, // 1.25 points per mile
+      'diamond': 1.5  // 1.5 points per mile
+    };
+    return basePoints[tierName] || 0.5;
   }
 
   async getBundleDiscountForTier(tierName: string, phase: string = 'booking'): Promise<{bundles: LoyaltyBundle[], totalDiscount: number}> {

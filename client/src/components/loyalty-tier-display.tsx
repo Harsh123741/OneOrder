@@ -62,7 +62,7 @@ export default function LoyaltyTierDisplay({
               {tierIcons[currentTier.tierName]}
             </div>
             <div>
-              <h3 className="text-lg font-bold">{currentTier.displayName}</h3>
+              <h3 className="text-lg font-bold">{currentTier.displayName.replace('Premier', 'Tier')}</h3>
               <p className="text-sm text-gray-600 font-normal">
                 {loyaltyPoints.toLocaleString()} points • {totalMilesFlown.toLocaleString()} miles
               </p>
