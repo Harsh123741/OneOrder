@@ -3,8 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plane, Calendar, Users, CreditCard, Clock } from "lucide-react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface OrderCardProps {
   order: any;
@@ -23,6 +24,7 @@ export default function OrderCard({
   onCancel,
 }: OrderCardProps) {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   // Payment timer state
   const [paymentTimer, setPaymentTimer] = useState<{
@@ -30,6 +32,15 @@ export default function OrderCard({
     remainingMinutes: number;
     remainingSeconds: number;
   } | null>(null);
+
+  // Mutation to update order status when payment expires
+  const expireOrderMutation = useMutation({
+    mutationFn: () => apiRequest('/api/orders/check-expired', 'POST'),
+    onSuccess: () => {
+      // Invalidate orders query to refresh the order list
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/user'] });
+    }
+  });
 
   // Calculate remaining payment time for pending orders
   useEffect(() => {
@@ -39,12 +50,18 @@ export default function OrderCard({
         const currentTime = new Date();
         const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
         const remainingMinutes = remainingTime / (1000 * 60);
+        const isExpired = remainingMinutes <= 0;
         
         setPaymentTimer({
-          isExpired: remainingMinutes <= 0,
+          isExpired,
           remainingMinutes: Math.floor(remainingMinutes),
           remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
         });
+
+        // If timer just expired, trigger order expiration check
+        if (isExpired && !expireOrderMutation.isPending) {
+          expireOrderMutation.mutate();
+        }
       };
 
       updateTimer();
@@ -53,7 +70,7 @@ export default function OrderCard({
     } else {
       setPaymentTimer(null);
     }
-  }, [order.status, order.paymentExpiresAt]);
+  }, [order.status, order.paymentExpiresAt, expireOrderMutation]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
