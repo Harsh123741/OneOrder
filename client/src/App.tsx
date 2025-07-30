@@ -8,7 +8,7 @@ import { WalletProvider } from "@/contexts/wallet-context";
 
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
-import CartSidebar from "@/components/cart/cart-sidebar";
+// import CartSidebar from "@/components/cart/cart-sidebar"; // Replaced with full cart page
 import { CartSync } from "@/components/cart/cart-sync";
 import { CartRefresh } from "@/components/cart/cart-refresh";
 import Home from "@/pages/home";
@@ -16,6 +16,7 @@ import Flights from "@/pages/flights";
 import Booking from "@/pages/booking";
 
 import Services from "@/pages/services";
+import Cart from "@/pages/cart";
 import Checkout from "@/pages/checkout";
 import Payment from "@/pages/payment";
 import CompletePayment from "@/pages/complete-payment";
@@ -37,6 +38,7 @@ function Router() {
       <Route path="/booking/:flightId" component={Booking} />
 
       <Route path="/services" component={Services} />
+      <Route path="/cart" component={Cart} />
       <Route path="/checkout" component={Checkout} />
       <Route path="/payment" component={Payment} />
       <Route path="/complete-payment/:orderNumber" component={CompletePayment} />
@@ -65,7 +67,7 @@ function App() {
                 <Router />
               </main>
               <Footer />
-              <CartSidebar />
+              {/* <CartSidebar /> Replaced with full cart page */}
               <CartSync />
               
             </div>

@@ -53,10 +53,10 @@ export function CartSync() {
       const flightItems = items.filter(item => item.type === 'flight');
       console.log('Cart sync: Checking for redirect - Items:', items.length, 'Flights:', flightItems.length, 'Location:', location);
       
-      if (flightItems.length > 0 && location !== '/services' && location !== '/checkout' && location !== '/payment') {
-        console.log('Cart sync: User has flight in cart, redirecting to services');
+      if (flightItems.length > 0 && location !== '/services' && location !== '/cart' && location !== '/checkout' && location !== '/payment') {
+        console.log('Cart sync: User has flight in cart, redirecting to cart');
         hasRedirectedOnLoginRef.current = true; // Mark that we've redirected
-        setLocation('/services');
+        setLocation('/cart');
       }
     }
   }, [user, items, location, setLocation]);

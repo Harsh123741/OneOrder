@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
-import FlightCard from "@/components/flight/flight-card";
+import FlightCardEnhanced from "@/components/flight/flight-card-enhanced";
 import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import { apiRequest } from "@/lib/queryClient";
 import { Filter, ArrowLeft } from "lucide-react";
@@ -329,7 +329,7 @@ export default function Flights() {
                   key={flight.id}
                   className="transform transition-all duration-200 hover:scale-[1.02]"
                 >
-                  <FlightCard flight={{ ...flight, searchParams }} />
+                  <FlightCardEnhanced flight={{ ...flight, searchParams }} />
                 </div>
               ))}
             </div>
