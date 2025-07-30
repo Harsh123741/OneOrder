@@ -9,11 +9,13 @@ import { useCartStore } from "@/store/cart-store";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, Package, Plane, Users, Clock, MapPin, ShoppingCart } from "lucide-react";
 import CartRecommendations from "@/components/cart/cart-recommendations";
+import { useNavigate } from 'react-router-dom';
 
 export default function Cart() {
   const [, setLocation] = useLocation();
   const { items, removeItem, updateQuantity, clearCart } = useCart();
   const { getSubtotal, getTaxes, getTotal } = useCartStore();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [isClearing, setIsClearing] = useState(false);
 
@@ -21,11 +23,7 @@ export default function Cart() {
   const serviceItems = items.filter(item => item.type === 'service');
 
   const handleBack = () => {
-    if (flightItems.length > 0) {
-      setLocation('/flights');
-    } else {
-      setLocation('/flights');
-    }
+    navigate(-1);
   };
 
   const handleContinue = () => {

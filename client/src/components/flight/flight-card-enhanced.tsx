@@ -41,7 +41,10 @@ interface FlightCardProps {
   onSelect?: (flight: any) => void;
 }
 
-export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps) {
+export default function FlightCardEnhanced({
+  flight,
+  onSelect,
+}: FlightCardProps) {
   const [, setLocation] = useLocation();
   const { addItem, items, removeItem } = useCart();
   const { toast } = useToast();
@@ -65,7 +68,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
   // Fetch loyalty bundles for current tier
   const { data: loyaltyBundles = [] } = useQuery({
-    queryKey: [`/api/loyalty/bundles/${loyaltyStatus?.currentTier?.tierName?.toLowerCase()}`],
+    queryKey: [
+      `/api/loyalty/bundles/${loyaltyStatus?.currentTier?.tierName?.toLowerCase()}`,
+    ],
     enabled: !!loyaltyStatus?.currentTier?.tierName,
   });
 
@@ -80,9 +85,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
           demandMultiplier: pricingData.demandMultiplier || 1,
           timeMultiplier: pricingData.timeMultiplier || 1,
           isLocked: pricingData.isLocked || false,
-          userFareHold: pricingData.userFareHold || null
+          userFareHold: pricingData.userFareHold || null,
         },
-        price: pricingData.currentPrice || flight.price
+        price: pricingData.currentPrice || flight.price,
       });
     }
   }, [pricingData, flight]);
@@ -101,22 +106,28 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
   };
 
   const handleProceed = () => {
-    setLocation('/cart');
+    setLocation("/services");
   };
 
   const isServiceInCart = (serviceId: string) => {
-    return items.some(item => item.id === serviceId || item.serviceId === parseInt(serviceId));
+    return items.some(
+      (item) => item.id === serviceId || item.serviceId === parseInt(serviceId),
+    );
   };
 
   const removeServiceFromCart = (serviceId: string) => {
-    const itemToRemove = items.find(item => item.id === serviceId || item.serviceId === parseInt(serviceId));
+    const itemToRemove = items.find(
+      (item) => item.id === serviceId || item.serviceId === parseInt(serviceId),
+    );
     if (itemToRemove) {
       removeItem(itemToRemove.id);
     }
   };
 
   const handleRemoveFlight = () => {
-    const flightItem = items.find(item => item.type === 'flight' && item.flightId === flight.id);
+    const flightItem = items.find(
+      (item) => item.type === "flight" && item.flightId === flight.id,
+    );
     if (flightItem) {
       removeItem(flightItem.id);
       setShowProceedButton(false);
@@ -133,7 +144,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
     try {
       const serviceItem = {
         id: `service-${service.id}-${Date.now()}`,
-        type: 'service' as const,
+        type: "service" as const,
         name: service.name,
         description: service.description,
         price: bundlePrice || parseFloat(service.price),
@@ -143,8 +154,14 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
           phase: service.phase,
           bundlePrice: bundlePrice,
           originalPrice: parseFloat(service.price),
-          discount: bundlePrice ? ((parseFloat(service.price) - bundlePrice) / parseFloat(service.price) * 100).toFixed(0) : 0
-        }
+          discount: bundlePrice
+            ? (
+                ((parseFloat(service.price) - bundlePrice) /
+                  parseFloat(service.price)) *
+                100
+              ).toFixed(0)
+            : 0,
+        },
       };
 
       await addItem(serviceItem);
@@ -191,47 +208,51 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
   const tierColors: { [key: string]: string } = {
     bronze: "border-l-orange-400 bg-orange-50",
-    silver: "border-l-gray-400 bg-gray-50", 
+    silver: "border-l-gray-400 bg-gray-50",
     gold: "border-l-yellow-400 bg-yellow-50",
     platinum: "border-l-purple-400 bg-purple-50",
-    diamond: "border-l-blue-400 bg-blue-50"
+    diamond: "border-l-blue-400 bg-blue-50",
   };
 
   const serviceIcons: { [key: string]: any } = {
     meal: Utensils,
-    insurance: Shield, 
+    insurance: Shield,
     lounge: Briefcase,
     wifi: Wifi,
     baggage: Package,
-    boarding: CreditCard
+    boarding: CreditCard,
   };
 
   const flightExclusiveOffers = [
     {
-      id: 'premium-meal-seat',
-      name: 'Premium Meal + Seat',
-      description: 'Gourmet meal + extra legroom seat',
+      id: "premium-meal-seat",
+      name: "Premium Meal + Seat",
+      description: "Gourmet meal + extra legroom seat",
       originalPrice: 111,
       bundlePrice: 89,
       icon: Utensils,
-      services: ['Meal Pre-booking', 'Extra Legroom Seat']
+      services: ["Meal Pre-booking", "Extra Legroom Seat"],
     },
     {
-      id: 'business-lounge',
-      name: 'Business Lounge Access', 
-      description: 'Relax in premium lounges',
+      id: "business-lounge",
+      name: "Business Lounge Access",
+      description: "Relax in premium lounges",
       originalPrice: 44,
       bundlePrice: 35,
       icon: Briefcase,
-      services: ['Lounge Access']
-    }
+      services: ["Lounge Access"],
+    },
   ];
 
   // Filter booking phase loyalty bundles
-  const bookingBundles = Array.isArray(loyaltyBundles) ? loyaltyBundles.filter((bundle: any) => bundle.phase === 'booking') : [];
+  const bookingBundles = Array.isArray(loyaltyBundles)
+    ? loyaltyBundles.filter((bundle: any) => bundle.phase === "booking")
+    : [];
 
   // Check if flight exists in cart
-  const isFlightInCart = items.some(item => item.type === 'flight' && item.flightId === flight.id);
+  const isFlightInCart = items.some(
+    (item) => item.type === "flight" && item.flightId === flight.id,
+  );
 
   // Check if fare hold should be shown (only before flight booking)
   const shouldShowFareHold = !isFlightInCart;
@@ -241,20 +262,20 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
     try {
       const serviceItem = {
         id: `service-${offer.id}-${Date.now()}`,
-        type: 'service' as const,
+        type: "service" as const,
         name: offer.name,
         description: offer.description,
         price: offer.bundlePrice,
         quantity: 1,
         serviceId: offer.id,
         details: {
-          phase: 'booking',
+          phase: "booking",
           bundlePrice: offer.bundlePrice,
           originalPrice: offer.originalPrice,
           discount: `${Math.round(((offer.originalPrice - offer.bundlePrice) / offer.originalPrice) * 100)}`,
           isExclusiveOffer: true,
-          flightSpecific: true
-        }
+          flightSpecific: true,
+        },
       };
 
       await addItem(serviceItem);
@@ -264,7 +285,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
         description: `${offer.name} has been added to your cart.`,
       });
     } catch (error) {
-      console.error('Failed to add exclusive offer:', error);
+      console.error("Failed to add exclusive offer:", error);
       toast({
         title: "Error",
         description: "Failed to add item to cart. Please try again.",
@@ -276,7 +297,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
   };
 
   const removeExclusiveOfferFromCart = (offerId: string) => {
-    const itemToRemove = items.find(item => item.serviceId === offerId);
+    const itemToRemove = items.find((item) => item.serviceId === offerId);
     if (itemToRemove) {
       removeItem(itemToRemove.id);
       toast({
@@ -287,7 +308,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
   };
 
   const isExclusiveOfferInCart = (offerId: string) => {
-    return items.some(item => item.type === 'service' && item.serviceId === offerId);
+    return items.some(
+      (item) => item.type === "service" && item.serviceId === offerId,
+    );
   };
 
   return (
@@ -312,7 +335,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                 </div>
                 <div className="flex flex-col gap-1">
                   {/* High Demand Badge */}
-                  <Badge className="bg-red-500 text-white text-xs">High Demand</Badge>
+                  <Badge className="bg-red-500 text-white text-xs">
+                    High Demand
+                  </Badge>
                   <div className="text-right">
                     <div className="text-2xl font-bold text-airline-blue">
                       ${flightWithPricing.price || flight.price}
@@ -344,7 +369,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                     <div className="w-2 h-2 bg-airline-blue rounded-full"></div>
                   </div>
                   <div className="mt-1 flex items-center space-x-2">
-                    <span className="text-xs text-gray-500">{flight.duration}</span>
+                    <span className="text-xs text-gray-500">
+                      {flight.duration}
+                    </span>
                     {getStopsBadge(flight.stops || 0)}
                   </div>
                 </div>
@@ -369,8 +396,8 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                     onClick={handleProceed}
                     className="w-full lg:w-auto bg-green-600 hover:bg-green-700 text-white px-6"
                   >
-                    Proceed to Cart
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    Proceed
+                    <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
                   <Button
                     onClick={handleRemoveFlight}
@@ -406,33 +433,52 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
         <div className="border-t border-orange-200 bg-orange-50 p-4 sm:p-6">
           <div className="flex items-center space-x-2 mb-4">
             <div className="w-5 h-5 text-orange-600">✨</div>
-            <h4 className="font-semibold text-gray-900">Exclusive Offers for This Flight</h4>
+            <h4 className="font-semibold text-gray-900">
+              Exclusive Offers for This Flight
+            </h4>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {flightExclusiveOffers.map((offer) => {
               const IconComponent = offer.icon;
               return (
-                <div key={offer.id} className="bg-white rounded-lg border border-orange-200 p-4">
+                <div
+                  key={offer.id}
+                  className="bg-white rounded-lg border border-orange-200 p-4"
+                >
                   <div className="flex items-start space-x-3">
                     <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                       <IconComponent className="h-4 w-4 text-orange-600" />
                     </div>
                     <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">{offer.name}</h5>
-                      <p className="text-sm text-gray-600 mb-2">{offer.description}</p>
+                      <h5 className="font-medium text-gray-900">
+                        {offer.name}
+                      </h5>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {offer.description}
+                      </p>
                       <div className="flex flex-col gap-2">
                         <div className="flex flex-col">
-                          <span className="text-xs text-gray-500 ">If Bought Seperately: <span className="line-through">${offer.originalPrice}</span></span>
+                          <span className="text-xs text-gray-500 ">
+                            If Bought Seperately:{" "}
+                            <span className="line-through">
+                              ${offer.originalPrice}
+                            </span>
+                          </span>
                           <span className="">
-                            Offer Price:<span className="text-lg font-bold text-orange-600 ml-2">${offer.bundlePrice}</span>
+                            Offer Price:
+                            <span className="text-lg font-bold text-orange-600 ml-2">
+                              ${offer.bundlePrice}
+                            </span>
                           </span>
                         </div>
                         {isExclusiveOfferInCart(offer.id) ? (
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => removeExclusiveOfferFromCart(offer.id)}
+                            onClick={() =>
+                              removeExclusiveOfferFromCart(offer.id)
+                            }
                             className="w-full bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
                           >
                             <Minus className="h-4 w-4 mr-2" />
@@ -470,7 +516,9 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
         {/* Tier Exclusive Offers */}
         {loyaltyStatus && bookingBundles.length > 0 && (
-          <div className={`border-t ${tierColors[loyaltyStatus.currentTier?.tierName?.toLowerCase()] || 'border-l-gray-400 bg-gray-50'} p-4 sm:p-6`}>
+          <div
+            className={`border-t ${tierColors[loyaltyStatus.currentTier?.tierName?.toLowerCase()] || "border-l-gray-400 bg-gray-50"} p-4 sm:p-6`}
+          >
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-5 h-5 text-blue-600">👑</div>
               <h4 className="font-semibold text-gray-900">
@@ -480,26 +528,39 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {bookingBundles.slice(0, 2).map((bundle: any) => (
-                <div key={bundle.id} className="bg-white rounded-lg border border-blue-200 p-4">
+                <div
+                  key={bundle.id}
+                  className="bg-white rounded-lg border border-blue-200 p-4"
+                >
                   <div className="flex items-start space-x-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                       <Shield className="h-4 w-4 text-blue-600" />
                     </div>
                     <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">{bundle.bundleName}</h5>
-                      <p className="text-sm text-gray-600 mb-2">{bundle.description}</p>
+                      <h5 className="font-medium text-gray-900">
+                        {bundle.bundleName}
+                      </h5>
+                      <p className="text-sm text-gray-600 mb-2">
+                        {bundle.description}
+                      </p>
                       <div className="flex items-center justify-between">
                         <div>
                           {bundle.isComplimentary ? (
-                            <span className="text-lg font-bold text-green-600">Free</span>
+                            <span className="text-lg font-bold text-green-600">
+                              Free
+                            </span>
                           ) : (
-                            <span className="text-lg font-bold text-blue-600">{bundle.discountPercentage}% off</span>
+                            <span className="text-lg font-bold text-blue-600">
+                              {bundle.discountPercentage}% off
+                            </span>
                           )}
                         </div>
                         {isServiceInCart(bundle.id.toString()) ? (
                           <Button
                             size="sm"
-                            onClick={() => removeServiceFromCart(bundle.id.toString())}
+                            onClick={() =>
+                              removeServiceFromCart(bundle.id.toString())
+                            }
                             disabled={addingService === bundle.id.toString()}
                             className="bg-red-500 hover:bg-red-600 text-white text-xs px-3"
                           >
@@ -509,13 +570,18 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                         ) : (
                           <Button
                             size="sm"
-                            onClick={() => handleAddServiceToCart({
-                              id: bundle.id,
-                              name: bundle.bundleName,
-                              description: bundle.description,
-                              price: "0",
-                              phase: 'booking'
-                            }, bundle.isComplimentary ? 0 : undefined)}
+                            onClick={() =>
+                              handleAddServiceToCart(
+                                {
+                                  id: bundle.id,
+                                  name: bundle.bundleName,
+                                  description: bundle.description,
+                                  price: "0",
+                                  phase: "booking",
+                                },
+                                bundle.isComplimentary ? 0 : undefined,
+                              )
+                            }
                             disabled={addingService === bundle.id.toString()}
                             className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3"
                           >
@@ -531,7 +597,6 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
             </div>
           </div>
         )}
-
       </CardContent>
 
       {/* Flight Selection Modal */}

@@ -393,7 +393,7 @@ export default function Services() {
         </Card>
 
         {/* Loyalty Tier Display */}
-        {loyaltyStatus && loyaltyBundles.length > 0 && (
+        {/* {loyaltyStatus && loyaltyBundles.length > 0 && (
           <LoyaltyTierDisplay
             loyaltyStatus={loyaltyStatus}
             loyaltyBundles={loyaltyBundles}
@@ -401,10 +401,10 @@ export default function Services() {
             onBundleToggle={handleBundleToggle}
             className="mb-8"
           />
-        )}
+        )} */}
 
         {/* Recommended Services Section */}
-        <RecommendedServicesSection />
+        {/* <RecommendedServicesSection /> */}
 
         {/* Multi-Passenger Service Selection */}
         {passengerCount > 1 ? (
