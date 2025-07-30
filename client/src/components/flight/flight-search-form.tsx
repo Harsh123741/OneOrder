@@ -24,53 +24,14 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
     class: "economy",
   });
 
-  // Format date from YYYY-MM-DD to MM-DD-YYYY for display
-  const formatDateForDisplay = (dateString: string) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return dateString;
-    
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = date.getFullYear();
-    
-    return `${month}/${day}/${year}`;
-  };
-
-  // Convert MM/DD/YYYY to YYYY-MM-DD for storage
-  const formatDateForStorage = (dateString: string) => {
-    if (!dateString) return '';
-    
-    // If already in YYYY-MM-DD format, return as is
-    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) return dateString;
-    
-    // Parse MM/DD/YYYY or MM-DD-YYYY format
-    const parts = dateString.split(/[\/\-]/);
-    if (parts.length === 3) {
-      const [month, day, year] = parts;
-      if (year.length === 4) {
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      }
-    }
-    
-    return dateString;
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Convert dates to proper format before submitting
-    const formattedSearchData = {
-      ...searchData,
-      departureDate: formatDateForStorage(searchData.departureDate),
-      returnDate: formatDateForStorage(searchData.returnDate),
-    };
-    
     if (onSearch) {
-      onSearch(formattedSearchData);
+      onSearch(searchData);
     } else {
       // Store search data and navigate to flights page
-      sessionStorage.setItem("flightSearch", JSON.stringify(formattedSearchData));
+      sessionStorage.setItem("flightSearch", JSON.stringify(searchData));
       setLocation("/flights");
     }
   };
@@ -168,18 +129,9 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
                   type="date"
                   value={searchData.departureDate}
                   onChange={(e) => setSearchData({ ...searchData, departureDate: e.target.value })}
-                  className="pl-10 [&::-webkit-calendar-picker-indicator]:opacity-100"
+                  className="pl-10"
                   min={new Date().toISOString().split('T')[0]}
-                  placeholder="MM/DD/YYYY"
-                  style={{
-                    colorScheme: 'light'
-                  }}
                 />
-                {searchData.departureDate && (
-                  <div className="absolute inset-0 pl-10 pr-3 py-2 pointer-events-none flex items-center text-sm">
-                    {formatDateForDisplay(searchData.departureDate)}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -193,19 +145,10 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
                   type="date"
                   value={searchData.returnDate}
                   onChange={(e) => setSearchData({ ...searchData, returnDate: e.target.value })}
-                  className="pl-10 [&::-webkit-calendar-picker-indicator]:opacity-100"
+                  className="pl-10"
                   disabled={searchData.tripType === "one_way"}
                   min={searchData.departureDate || new Date().toISOString().split('T')[0]}
-                  placeholder="MM/DD/YYYY"
-                  style={{
-                    colorScheme: 'light'
-                  }}
                 />
-                {searchData.returnDate && (
-                  <div className="absolute inset-0 pl-10 pr-3 py-2 pointer-events-none flex items-center text-sm">
-                    {formatDateForDisplay(searchData.returnDate)}
-                  </div>
-                )}
               </div>
             </div>
           </div>
