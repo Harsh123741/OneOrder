@@ -53,10 +53,15 @@ export function CartSync() {
       const flightItems = items.filter(item => item.type === 'flight');
       console.log('Cart sync: Checking for redirect - Items:', items.length, 'Flights:', flightItems.length, 'Location:', location);
       
-      if (flightItems.length > 0 && location !== '/services' && location !== '/cart' && location !== '/checkout' && location !== '/payment') {
-        console.log('Cart sync: User has flight in cart, redirecting to cart');
-        hasRedirectedOnLoginRef.current = true; // Mark that we've redirected
-        setLocation('/cart');
+      // Don't automatically redirect to cart after login - preserve user's current page
+      // Only redirect to flights page if user is on the home page and has no flights in cart
+      if (flightItems.length === 0 && location === '/') {
+        console.log('Cart sync: User on home page with no flights, redirecting to flights');
+        hasRedirectedOnLoginRef.current = true;
+        setLocation('/flights');
+      } else {
+        console.log('Cart sync: Preserving cart items without redirect - user stays on current page');
+        hasRedirectedOnLoginRef.current = true; // Mark as handled to prevent further checks
       }
     }
   }, [user, items, location, setLocation]);
