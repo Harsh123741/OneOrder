@@ -91,6 +91,18 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
     }
   };
 
+  const handleRemoveFlight = () => {
+    const flightItem = items.find(item => item.type === 'flight' && item.flightId === flight.id);
+    if (flightItem) {
+      removeItem(flightItem.id);
+      setShowProceedButton(false);
+      toast({
+        title: "Flight Removed",
+        description: "Flight has been removed from your cart",
+      });
+    }
+  };
+
   const handleAddServiceToCart = async (service: any, bundlePrice?: number) => {
     setAddingService(service.id);
     
@@ -273,7 +285,25 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
             {/* Price and Actions */}
             <div className="flex flex-col items-end space-y-3 w-full lg:w-auto">
-              {showProceedButton || isFlightInCart ? (
+              {isFlightInCart ? (
+                <div className="flex flex-col space-y-2">
+                  <Button
+                    onClick={handleProceed}
+                    className="w-full lg:w-auto bg-green-600 hover:bg-green-700 text-white px-6"
+                  >
+                    Proceed to Cart
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                  <Button
+                    onClick={handleRemoveFlight}
+                    variant="outline"
+                    className="w-full lg:w-auto border-red-500 text-red-500 hover:bg-red-50 px-6"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove Flight
+                  </Button>
+                </div>
+              ) : showProceedButton ? (
                 <Button
                   onClick={handleProceed}
                   className="w-full lg:w-auto bg-green-600 hover:bg-green-700 text-white px-6"

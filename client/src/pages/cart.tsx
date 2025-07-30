@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useCartStore } from "@/store/cart-store";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, Package, Plane, Users, Clock, MapPin, ShoppingCart } from "lucide-react";
+import CartRecommendations from "@/components/cart/cart-recommendations";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
@@ -308,6 +309,13 @@ export default function Cart() {
             </Card>
           </div>
         </div>
+
+        {/* Recommendations Section */}
+        {items.length > 0 && (
+          <div className="mt-12">
+            <CartRecommendations />
+          </div>
+        )}
       </div>
     </div>
   );

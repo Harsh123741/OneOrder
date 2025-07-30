@@ -812,6 +812,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cart recommendation endpoints
+  app.get("/api/recommendations/pair-with-cart/:userId", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const mockPairRecommendations = [
+        {
+          id: "1",
+          name: "Travel Insurance",
+          description: "Comprehensive protection for your trip",
+          price: "45.99",
+          phase: "booking"
+        },
+        {
+          id: "2", 
+          name: "Priority Boarding",
+          description: "Board early and secure overhead space",
+          price: "25.00",
+          phase: "booking"
+        }
+      ];
+      res.json(mockPairRecommendations);
+    } catch (error) {
+      console.error("Error getting pair recommendations:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/recommendations/buy-again/:userId", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const mockBuyAgainRecommendations = [
+        {
+          id: "3",
+          name: "Extra Baggage",
+          description: "Additional 23kg baggage allowance",
+          price: "55.00",
+          frequency: 3,
+          phase: "booking"
+        }
+      ];
+      res.json(mockBuyAgainRecommendations);
+    } catch (error) {
+      console.error("Error getting buy again recommendations:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/recommendations/bundles/:userId", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const mockBundleRecommendations = [
+        {
+          id: "bundle-1",
+          name: "Comfort Bundle",
+          description: "Seat selection + meal + priority boarding",
+          originalPrice: 85.00,
+          bundlePrice: 65.00,
+          serviceCount: 3
+        }
+      ];
+      res.json(mockBundleRecommendations);
+    } catch (error) {
+      console.error("Error getting bundle recommendations:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Get personalized service recommendations
   app.get("/api/services/recommendations", authenticateToken, async (req: any, res) => {
     try {
