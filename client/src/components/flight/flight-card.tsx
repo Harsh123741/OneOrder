@@ -69,18 +69,10 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
                     {flight.airline}
                   </h3>
-                  <p className="text-xs sm:text-sm text-gray-600">{flight.flightNumber}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    {flight.flightNumber}
+                  </p>
                 </div>
-              </div>
-              {/* Mobile price display */}
-              <div className="lg:hidden">
-                <DynamicPricingDisplay
-                  flightId={flight.id}
-                  currentPrice={parseFloat(flight.price)}
-                  basePrice={parseFloat(flight.price)}
-                  showFareHold={false}
-                  className="text-xs"
-                />
               </div>
             </div>
 
@@ -138,12 +130,12 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
             </div>
 
             {/* Aircraft Info */}
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm text-gray-600">
-              <span className="flex items-center space-x-1">
+            <div className="flex items-center sm:text-sm text-sm gap-10 text-gray-600">
+              <span className=" my-auto flex items-center space-x-1">
                 <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{flight.aircraft}</span>
               </span>
-              <span className="flex items-center space-x-1">
+              <span className="my-auto flex items-center space-x-1">
                 <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span>{flight.availableSeats} seats left</span>
               </span>
@@ -153,7 +145,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           {/* Price and Actions */}
           <div className="text-center lg:text-right space-y-3 w-full lg:w-auto lg:min-w-[250px] xl:min-w-[280px]">
             {/* Desktop price display */}
-            <div className="hidden lg:block">
+            <div className="">
               <DynamicPricingDisplay
                 flightId={flight.id}
                 currentPrice={parseFloat(flight.price)}
@@ -163,10 +155,10 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 ">
               <Button
                 onClick={handleSelectFlight}
-                className="w-full sm:w-auto lg:w-full xl:w-auto airline-button-primary"
+                className="w-full xl:w-auto airline-button-primary"
               >
                 Select Flight
               </Button>

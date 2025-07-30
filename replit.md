@@ -219,9 +219,77 @@ The architecture supports a scalable, maintainable airline management system wit
   - **AUTHENTICATION INTEGRATION**: Enhanced flight search API to check user-specific fare holds with proper JWT token validation
   - **RESPONSIVE DESIGN IMPROVEMENTS**: Updated flights component layout for better mobile/tablet/desktop responsiveness
   - **VERIFIED FUNCTIONALITY**: Confirmed new users see dynamic pricing while fare hold users see locked prices only for themselves
+- **CART-SPECIFIC PRICE NOTIFICATIONS & DYNAMIC PRICING DISPLAY (January 2025)**:
+  - **TARGETED NOTIFICATIONS**: Price change notifications now only appear for services added to cart, not all services
+  - **ENHANCED CART DISPLAY**: Cart sidebar shows complete dynamic pricing information with tags, price changes, and trending indicators
+  - **REMOVED GENERAL NOTIFICATIONS**: Services page no longer shows price notifications - only cart-specific alerts appear
+  - **FIXED DATABASE PRICING**: Resolved pricing_id database errors and infinite loop issues in dynamic pricing system
+  - **CART PRICING TAGS**: Services in cart display demand-based tags ("booking fast", "limited stock", "most popular")
+  - **REAL-TIME CART UPDATES**: Cart automatically refreshes to show current dynamic pricing with price trend indicators
 - **CRITICAL PASSWORD & PRICING FIXES (January 2025)**:
   - **FIXED PASSWORD OVERRIDE BUG**: Resolved issue where new user registration was overriding existing users' passwords
   - **ENHANCED PASSWORD SECURITY**: Increased bcrypt salt rounds to 12 and ensured unique password hashes for each user
   - **CART PRICING SYNCHRONIZATION**: Fixed cart to display dynamic pricing current prices instead of static flight prices
   - **DYNAMIC PRICING INTEGRATION**: Cart now correctly uses `flight.dynamicPricing.currentPrice` for accurate pricing display
   - **VERIFIED AUTHENTICATION**: Confirmed each user now has unique password hashes and can authenticate independently
+- **30-MINUTE PAYMENT WINDOW SYSTEM (January 2025)**:
+  - **SERVER-SIDE VALIDATION**: Orders automatically expire after 30 minutes with status changed to "order_expired"
+  - **REAL-TIME COUNTDOWN TIMER**: Payment pages show exact remaining time with live updates every second
+  - **CLIENT-SIDE AUTO-REDIRECT**: Users redirected when payment window expires with clear messaging
+  - **ORDER STATUS TRACKING**: New "order_expired" status with appropriate badge styling and filtering
+  - **AUTOMATIC ORDER CHECKING**: My Orders page automatically checks and updates expired orders on load
+  - **PAYMENT BUTTON STATES**: Complete Payment buttons disabled when window expires with clear status indication
+  - **ORDER SUCCESS REDIRECT**: Successful payments now redirect to order confirmation page instead of order details
+- **COMPREHENSIVE BOOKING FLOW NAVIGATION (January 2025)**:
+  - **BACK NAVIGATION ARROWS**: Added back navigation buttons to all booking flow pages (flights, services, checkout)
+  - **DATA PRESERVATION**: Selected flight and search parameters preserved when navigating backwards through booking flow
+  - **SEAMLESS USER EXPERIENCE**: Users can navigate back to modify selections without losing previous choices
+  - **CONSISTENT NAVIGATION**: Uniform back button styling and placement across all booking pages
+  - **SESSION STORAGE INTEGRATION**: Navigation properly integrates with existing session storage for data persistence
+- **COMPLETE FLIGHT DYNAMIC PRICING SYSTEM (January 2025)**:
+  - **REAL-TIME FLIGHT PRICE UPDATES**: Flights in cart now show dynamic pricing changes when no fare hold is active
+  - **CART FLIGHT PRICING DISPLAY**: Enhanced cart sidebar to show flight pricing status (locked vs live pricing)
+  - **GLOBAL CART REFRESH**: Added CartRefresh component to main App for real-time price monitoring across all pages
+  - **FLIGHT PRICE NOTIFICATIONS**: Users receive toast notifications when flight prices change in their cart
+  - **FARE HOLD VISUAL INDICATORS**: Clear visual distinction between protected (fare hold) and live pricing in cart
+  - **ENHANCED FLIGHT DATA**: Flight items in cart now include complete dynamic pricing metadata for accurate updates
+- **NOTIFICATION CENTER IMPLEMENTATION (January 2025)**:
+  - **REPLACED POPUP NOTIFICATIONS**: Implemented notification center in top navigation instead of toast popups for price changes
+  - **BELL ICON WITH BADGE**: Added bell icon in header showing unread notification count with visual indicator
+  - **COMPREHENSIVE NOTIFICATION PANEL**: Organized list showing all flight and service price changes with timestamps
+  - **FARE HOLD STATUS TRACKING**: Flight notifications include fare hold status (protected vs live pricing)
+  - **TREND INDICATORS**: Visual indicators showing price increases (red) and decreases (green) with proper icons
+  - **NOTIFICATION MANAGEMENT**: Mark as read, mark all read, and clear all functionality for organized notification handling
+  - **PERSISTENT STORAGE**: Notifications persist across sessions with proper date handling and serialization
+- **15-MINUTE PAYMENT WINDOW SYSTEM COMPLETION (January 2025)**:
+  - **FIXED ORDER-CARD TIMER**: Updated order-card component to use paymentExpiresAt field instead of 30-minute calculation from creation
+  - **CONSISTENT 15-MINUTE MESSAGING**: Changed all timer text from "1 minute" to "15 minutes" across order cards and payment pages
+  - **UNIFIED TIMER LOGIC**: All countdown timers now use the same 15-minute payment expiration logic from database
+  - **AUTOMATIC ORDER EXPIRATION**: Orders expire exactly 15 minutes after creation with inventory restoration
+  - **REAL-TIME TIMER UPDATES**: Payment countdown timers update every second showing minutes and seconds remaining
+- **ENHANCED COMPLETE PAYMENT PAGE (January 2025)**:
+  - **COMPREHENSIVE FLIGHT DETAILS**: Added detailed flight information display matching regular payment flow
+  - **PASSENGER INFORMATION SECTION**: Complete passenger details shown for all travelers in booking
+  - **ENHANCED SERVICE BREAKDOWN**: Detailed service display with descriptions and passenger assignments
+  - **COST BREAKDOWN ANALYSIS**: Base flight cost, services, taxes breakdown with per-passenger calculations
+  - **FLIGHT DATA API ENHANCEMENT**: Server now fetches and includes complete flight details in order endpoints
+  - **PROFESSIONAL VISUAL DESIGN**: Airline-themed styling with From/To layout and duration information
+- **DYNAMIC PRICING AT ORDER CREATION IMPLEMENTATION (January 2025)**:
+  - **PRICING UPDATES ON RESERVATION**: Dynamic pricing now updates when orders are created and inventory is reserved
+  - **REMOVED PAYMENT COMPLETION PRICING**: No longer updates pricing during payment completion since inventory is already reserved
+  - **ORDER EXPIRATION PRICING REVERSAL**: Added reverseBooking method to restore pricing when orders expire and inventory is released
+  - **COMPREHENSIVE DEMAND TRACKING**: Both flights and services track booking demand and inventory changes at order creation time
+  - **PRICING FLOW OPTIMIZATION**: Ensures pricing reflects actual inventory reservation state rather than payment completion state
+- **MY BOOKINGS AUTO-REFRESH SYSTEM (January 2025)**:
+  - **AUTOMATIC PAGE REFRESH**: Booking list automatically refreshes every time user navigates to My Orders page
+  - **REAL-TIME DATA FETCHING**: Enhanced query configuration with refetchOnMount and refetchOnWindowFocus for fresh data
+  - **MANUAL REFRESH BUTTON**: Added refresh button with loading indicator for user-controlled updates
+  - **STALE DATA PREVENTION**: Set staleTime to 0 to ensure data is always considered fresh and refetched
+  - **RESPONSIVE REFRESH UI**: Refresh button shows spinning animation during data loading
+- **ENHANCED SERVICE CARD RECOMMENDATIONS DISPLAY (January 2025)**:
+  - **IN-CARD RECOMMENDATION BADGES**: Moved recommendation reason and frequency badges directly into service cards for better visual integration
+  - **IMPROVED USER EXPERIENCE**: Badges now display within the card header showing "3x before" frequency and contextual reasons like "Great for morning departures"
+  - **SEAMLESS INTEGRATION**: Enhanced ServiceCardEnhanced component to accept and display recommendation metadata
+  - **DYNAMIC BADGE POSITIONING**: Badges positioned elegantly within each service card with proper spacing and styling
+  - **AUTHENTICATED DATA FLOW**: Fixed authentication token issues (corrected from 'token' to 'auth_token') for proper API access
+  - **ENRICHED SERVICE DATA**: Services automatically enriched with recommendation data throughout the application for consistent display

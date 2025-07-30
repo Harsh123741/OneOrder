@@ -42,6 +42,8 @@ export interface IStorage {
   getServices(phase?: string): Promise<Service[]>;
   getService(id: number): Promise<Service | undefined>;
   updateServiceInventory(id: number, inventory: number): Promise<Service | undefined>;
+  reserveServiceInventory(id: number, quantity: number): Promise<Service | undefined>;
+  restoreServiceInventory(id: number, quantity: number): Promise<Service | undefined>;
   createService(service: InsertService): Promise<Service>;
   
   // Order methods
@@ -50,6 +52,7 @@ export interface IStorage {
   getUserOrders(userId: number): Promise<Order[]>;
   createOrder(order: InsertOrder): Promise<Order>;
   updateOrder(id: number, updates: Partial<Order>): Promise<Order | undefined>;
+  updateOrderStatus(id: number, status: string, paymentStatus: string): Promise<Order | undefined>;
   cancelOrder(id: number): Promise<Order | undefined>;
   removeServiceFromOrder(orderId: number, serviceId: number): Promise<Order | undefined>;
   addServiceToOrder(orderId: number, service: any): Promise<Order | undefined>;
@@ -583,6 +586,37 @@ export class DatabaseStorage implements IStorage {
     return service || undefined;
   }
 
+  async restoreServiceInventory(serviceId: number, quantity: number): Promise<void> {
+    try {
+      const service = await this.getService(serviceId);
+      if (service && service.inventory !== null) {
+        const newInventory = (service.inventory || 0) + quantity;
+        await this.updateServiceInventory(serviceId, newInventory);
+        console.log(`Restored service ${serviceId} inventory by ${quantity} to ${newInventory}`);
+      }
+    } catch (error) {
+      console.error('Error restoring service inventory:', error);
+    }
+  }
+
+  async reserveServiceInventory(id: number, quantity: number): Promise<Service | undefined> {
+    const service = await this.getService(id);
+    if (!service || service.inventory < quantity) {
+      throw new Error(`Insufficient inventory for service ${id}`);
+    }
+    
+    const newInventory = service.inventory - quantity;
+    return await this.updateServiceInventory(id, newInventory);
+  }
+
+  async restoreServiceInventory(id: number, quantity: number): Promise<Service | undefined> {
+    const service = await this.getService(id);
+    if (!service) return undefined;
+    
+    const newInventory = service.inventory + quantity;
+    return await this.updateServiceInventory(id, newInventory);
+  }
+
   async createService(insertService: InsertService): Promise<Service> {
     const [service] = await db
       .insert(services)
@@ -612,15 +646,49 @@ export class DatabaseStorage implements IStorage {
   async createOrder(insertOrder: InsertOrder): Promise<Order> {
     const orderNumber = `SL${Date.now().toString().slice(-6)}`;
     
-    // Auto-assign random seats for all passengers
+    // Set payment expiration to 15 minutes from now
+    const paymentExpiresAt = new Date();
+    paymentExpiresAt.setMinutes(paymentExpiresAt.getMinutes() + 15);
+    
+    // Create order with pending status - do NOT reserve seats/services yet
+    const [order] = await db
+      .insert(orders)
+      .values({
+        ...insertOrder,
+        orderNumber,
+        status: "pending_payment",
+        paymentStatus: "pending",
+        paymentExpiresAt,
+        assignedSeats: [], // Empty until payment is completed
+      })
+      .returning();
+    return order;
+  }
+
+  // New method to complete payment and reserve seats/services
+  async completeOrderPayment(orderId: number, paymentDetails: any): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    if (!order) return undefined;
+
+    if ((order.status !== "pending" && order.status !== "pending_payment") || order.paymentStatus !== "pending") {
+      throw new Error("Order is not in pending payment status");
+    }
+
+    console.log(`Completing payment for order ${order.orderNumber} - reserving seats and services`);
+    
+    // Now reserve seats for all passengers
     let assignedSeats: any[] = [];
-    if (insertOrder.flightId && insertOrder.passengerInfo) {
-      const passengers = insertOrder.passengerInfo as any[];
-      const availableSeats = await this.getFlightSeats(insertOrder.flightId);
+    if (order.flightId && order.passengerInfo) {
+      const passengers = order.passengerInfo as any[];
+      const availableSeats = await this.getFlightSeats(order.flightId);
       const economySeats = availableSeats.filter(seat => 
         seat.isAvailable && seat.seatType === 'economy' && !seat.isExtraLegroom
       );
       
+      if (economySeats.length < passengers.length) {
+        throw new Error("Not enough available seats for all passengers");
+      }
+
       // Randomly assign seats to passengers
       const shuffledSeats = [...economySeats].sort(() => Math.random() - 0.5);
       assignedSeats = passengers.map((passenger, index) => ({
@@ -636,25 +704,96 @@ export class DatabaseStorage implements IStorage {
       for (const seatAssignment of assignedSeats) {
         if (seatAssignment.seatId) {
           await this.updateSeatAvailability(seatAssignment.seatId, false);
+          console.log(`Reserved seat: ${seatAssignment.seatNumber} for passenger: ${seatAssignment.passengerName}`);
+        }
+      }
+    }
+
+    // Update service inventory for selected services
+    if (order.selectedServices && Array.isArray(order.selectedServices)) {
+      for (const service of order.selectedServices as any[]) {
+        // Parse service ID to integer if it's a string like "service-3"
+        let serviceId = service.id;
+        if (typeof serviceId === 'string' && serviceId.startsWith('service-')) {
+          serviceId = parseInt(serviceId.replace('service-', ''));
+        } else if (typeof serviceId === 'string') {
+          serviceId = parseInt(serviceId);
+        }
+        
+        if (!isNaN(serviceId)) {
+          const serviceData = await this.getService(serviceId);
+          if (serviceData && serviceData.inventory !== null) {
+            const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+            await this.updateServiceInventory(serviceId, newInventory);
+            console.log(`Updated service inventory: ${service.name} -> ${newInventory}`);
+          }
+        } else {
+          console.log(`Skipping invalid service ID: ${service.id}`);
+        }
+      }
+    }
+
+    // Update passenger-specific services inventory
+    if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+      for (const passenger of order.passengerInfo as any[]) {
+        if (passenger.services && Array.isArray(passenger.services)) {
+          for (const service of passenger.services) {
+            // Parse service ID to integer if it's a string like "service-3"
+            let serviceId = service.id;
+            if (typeof serviceId === 'string' && serviceId.startsWith('service-')) {
+              serviceId = parseInt(serviceId.replace('service-', ''));
+            } else if (typeof serviceId === 'string') {
+              serviceId = parseInt(serviceId);
+            }
+            
+            if (!isNaN(serviceId)) {
+              const serviceData = await this.getService(serviceId);
+              if (serviceData && serviceData.inventory !== null) {
+                const newInventory = Math.max(0, (serviceData.inventory || 0) - (service.quantity || 1));
+                await this.updateServiceInventory(serviceId, newInventory);
+                console.log(`Updated passenger service inventory: ${service.name} -> ${newInventory}`);
+              }
+            } else {
+              console.log(`Skipping invalid passenger service ID: ${service.id}`);
+            }
+          }
         }
       }
     }
     
-    const [order] = await db
-      .insert(orders)
-      .values({
-        ...insertOrder,
-        orderNumber,
+    // Update order status to confirmed with payment details
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({ 
+        status: "confirmed",
+        paymentStatus: "paid",
+        canCheckIn: true,
         assignedSeats,
+        paymentMethod: paymentDetails.paymentMethod,
+        paymentDetails: paymentDetails,
       })
+      .where(eq(orders.id, orderId))
       .returning();
-    return order;
+    
+    return updatedOrder;
   }
 
   async updateOrder(id: number, updates: any): Promise<Order | undefined> {
     const [order] = await db
       .update(orders)
       .set(updates)
+      .where(eq(orders.id, id))
+      .returning();
+    return order || undefined;
+  }
+
+  async updateOrderStatus(id: number, status: string, paymentStatus: string): Promise<Order | undefined> {
+    const [order] = await db
+      .update(orders)
+      .set({ 
+        status, 
+        paymentStatus
+      })
       .where(eq(orders.id, id))
       .returning();
     return order || undefined;
@@ -867,14 +1006,21 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(loyaltyBundles).where(eq(loyaltyBundles.isActive, true));
     
     if (tierName) {
-      query = query.where(eq(loyaltyBundles.tierName, tierName));
+      query = query.where(eq(loyaltyBundles.tierName, tierName.toLowerCase()));
     }
     
     if (phase) {
       query = query.where(eq(loyaltyBundles.phase, phase));
     }
     
-    return await query;
+    const result = await query;
+    
+    // Additional filtering to ensure exact tier match
+    if (tierName) {
+      return result.filter(bundle => bundle.tierName === tierName.toLowerCase());
+    }
+    
+    return result;
   }
 
   async createLoyaltyBundle(insertBundle: InsertLoyaltyBundle): Promise<LoyaltyBundle> {
@@ -938,22 +1084,24 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Calculate progress to next tier
-    const nextTierIndex = tiers.findIndex(t => t.tierName === qualifiedTier.tierName) + 1;
-    const nextTier = nextTierIndex < tiers.length ? tiers[nextTierIndex] : null;
+    const tiersOrdered = await this.getLoyaltyTiers(); // Get in ascending order: bronze, silver, gold, platinum, diamond
+    const currentTierIndex = tiersOrdered.findIndex(t => t.tierName === qualifiedTier.tierName);
+    const nextTier = currentTierIndex < tiersOrdered.length - 1 ? tiersOrdered[currentTierIndex + 1] : null;
     
     let progressToNext = null;
     if (nextTier) {
+      // Calculate progress as the closest to achieving next tier (minimum qualification)
+      const pointsProgress = Math.min(100, (user.loyaltyPoints / nextTier.minPoints) * 100);
+      const milesProgress = Math.min(100, (user.totalMilesFlown / nextTier.minMiles) * 100);
+      const spendProgress = Math.min(100, (parseFloat(user.totalSpent) / parseFloat(nextTier.minSpend)) * 100);
+      
       progressToNext = {
         tierName: nextTier.tierName,
         displayName: nextTier.displayName,
         pointsNeeded: Math.max(0, nextTier.minPoints - user.loyaltyPoints),
         milesNeeded: Math.max(0, nextTier.minMiles - user.totalMilesFlown),
         spendNeeded: Math.max(0, parseFloat(nextTier.minSpend) - parseFloat(user.totalSpent)),
-        progressPercentage: Math.max(
-          (user.loyaltyPoints / nextTier.minPoints) * 100,
-          (user.totalMilesFlown / nextTier.minMiles) * 100,
-          (parseFloat(user.totalSpent) / parseFloat(nextTier.minSpend)) * 100
-        )
+        progressPercentage: Math.max(pointsProgress, milesProgress, spendProgress)
       };
     }
 
@@ -968,32 +1116,51 @@ export class DatabaseStorage implements IStorage {
     const user = await this.getUser(userId);
     if (!user) return;
 
-    // Calculate miles earned (simplified - in reality would use flight distance)
-    const milesEarned = Math.round(parseFloat(flight.price) * 2); // 2 miles per dollar spent
+    // Calculate miles earned based on actual flight distance
+    const flightDistance = this.calculateFlightDistance(flight.departureAirport, flight.arrivalAirport);
+    const milesEarned = Math.round(flightDistance);
     
     // Calculate points earned with tier multiplier
     const tier = await this.getLoyaltyTier(user.loyaltyTier);
     const multiplier = tier ? parseFloat(tier.multiplier) : 1.0;
-    const basePoints = Math.round(parseFloat(order.total) * 10); // 10 points per dollar
-    const pointsEarned = Math.round(basePoints * multiplier);
+    
+    // Points from spending: base points per dollar varies by tier (lower tiers get fewer points)
+    const basePointsPerDollar = this.getBasePointsPerDollar(user.loyaltyTier);
+    const spendingPoints = Math.round(parseFloat(order.total) * basePointsPerDollar * multiplier);
+    
+    // Points from distance: base points per mile varies by tier (lower tiers get fewer points)
+    const basePointsPerMile = this.getBasePointsPerMile(user.loyaltyTier);
+    const distancePoints = Math.round(flightDistance * basePointsPerMile * multiplier);
+    
+    const totalPointsEarned = spendingPoints + distancePoints;
 
     // Update user loyalty stats
     await this.updateUser(userId, {
-      loyaltyPoints: user.loyaltyPoints + pointsEarned,
+      loyaltyPoints: user.loyaltyPoints + totalPointsEarned,
       totalMilesFlown: user.totalMilesFlown + milesEarned,
       totalSpent: (parseFloat(user.totalSpent) + parseFloat(order.total)).toFixed(2),
       lifetimeMiles: user.lifetimeMiles + milesEarned,
     });
 
-    // Create points transaction record
+    // Create points transaction records
     await this.createPointsTransaction({
       userId,
       orderId: order.id,
       transactionType: 'earned',
-      points: pointsEarned,
-      description: `Points earned from booking ${order.orderNumber}`,
+      points: spendingPoints,
+      description: `Points from spending: $${order.total} × 10 pts/$ × ${multiplier}x tier bonus`,
       multiplier: multiplier.toFixed(2),
-      basePoints,
+      basePoints: Math.round(parseFloat(order.total) * 10),
+    });
+
+    await this.createPointsTransaction({
+      userId,
+      orderId: order.id,
+      transactionType: 'earned',
+      points: distancePoints,
+      description: `Points from distance: ${flightDistance} miles × 1 pt/mile × ${multiplier}x tier bonus`,
+      multiplier: multiplier.toFixed(2),
+      basePoints: Math.round(flightDistance),
     });
 
     // Check for tier upgrade
@@ -1051,6 +1218,70 @@ export class DatabaseStorage implements IStorage {
       'diamond': 25000,
     };
     return bonuses[tierName] || 0;
+  }
+
+  private calculateFlightDistance(departure: string, arrival: string): number {
+    // Airport coordinates database for major airports (simplified)
+    const airportCoords: { [key: string]: { lat: number; lng: number } } = {
+      'JFK': { lat: 40.6413, lng: -73.7781 },
+      'LAX': { lat: 33.9425, lng: -118.4081 },
+      'ORD': { lat: 41.9742, lng: -87.9073 },
+      'DFW': { lat: 32.8998, lng: -97.0403 },
+      'DEN': { lat: 39.8617, lng: -104.6737 },
+      'ATL': { lat: 33.6367, lng: -84.4281 },
+      'SFO': { lat: 37.6213, lng: -122.3790 },
+      'SEA': { lat: 47.4502, lng: -122.3088 }
+    };
+
+    const depCoords = airportCoords[departure];
+    const arrCoords = airportCoords[arrival];
+
+    if (!depCoords || !arrCoords) {
+      // Fallback: estimate based on average domestic flight (1,000 miles)
+      return 1000;
+    }
+
+    // Haversine formula for great circle distance
+    const R = 3959; // Earth's radius in miles
+    const dLat = this.degreesToRadians(arrCoords.lat - depCoords.lat);
+    const dLng = this.degreesToRadians(arrCoords.lng - depCoords.lng);
+    
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.degreesToRadians(depCoords.lat)) * Math.cos(this.degreesToRadians(arrCoords.lat)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+
+    return Math.round(distance);
+  }
+
+  private degreesToRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  private getBasePointsPerDollar(tierName: string): number {
+    // Lower tiers earn fewer base points per dollar spent
+    const basePoints: { [key: string]: number } = {
+      'bronze': 5,    // 5 points per dollar
+      'silver': 7,    // 7 points per dollar
+      'gold': 10,     // 10 points per dollar
+      'platinum': 12, // 12 points per dollar
+      'diamond': 15   // 15 points per dollar
+    };
+    return basePoints[tierName] || 5;
+  }
+
+  private getBasePointsPerMile(tierName: string): number {
+    // Lower tiers earn fewer base points per mile flown
+    const basePoints: { [key: string]: number } = {
+      'bronze': 0.5,  // 0.5 points per mile
+      'silver': 0.75, // 0.75 points per mile
+      'gold': 1.0,    // 1 point per mile
+      'platinum': 1.25, // 1.25 points per mile
+      'diamond': 1.5  // 1.5 points per mile
+    };
+    return basePoints[tierName] || 0.5;
   }
 
   async getBundleDiscountForTier(tierName: string, phase: string = 'booking'): Promise<{bundles: LoyaltyBundle[], totalDiscount: number}> {

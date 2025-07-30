@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { useCart } from "@/hooks/use-cart";
+import { NotificationCenter } from "@/components/notifications/notification-center";
+import { useNotificationStore } from "@/store/notification-store";
 import {
   Plane,
   ShoppingCart,
@@ -24,6 +26,7 @@ export default function Header() {
   const [location] = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
   const { toggleCart, itemCount } = useCart();
+  const { notifications, markAsRead, markAllAsRead, clearAll } = useNotificationStore();
 
   const navigation = [
     { name: "Home", href: "/" },
@@ -66,6 +69,16 @@ export default function Header() {
 
           {/* Right side actions */}
           <div className="flex items-center space-x-4">
+            {/* Notification Center */}
+            {isAuthenticated && (
+              <NotificationCenter
+                notifications={notifications}
+                onMarkAsRead={markAsRead}
+                onMarkAllAsRead={markAllAsRead}
+                onClearAll={clearAll}
+              />
+            )}
+
             {/* Shopping Cart */}
             <Button
               variant="ghost"

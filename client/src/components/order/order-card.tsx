@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plane, Calendar, Users, CreditCard } from "lucide-react";
+import { Plane, Calendar, Users, CreditCard, Clock } from "lucide-react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface OrderCardProps {
   order: any;
@@ -11,6 +13,7 @@ interface OrderCardProps {
   onCheckIn?: (order: any) => void;
   onModify?: (order: any) => void;
   onCancel?: (order: any) => void;
+  setLocation?: (location: string) => void;
 }
 
 export default function OrderCard({
@@ -21,6 +24,74 @@ export default function OrderCard({
   onCancel,
 }: OrderCardProps) {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
+
+  // Payment timer state
+  const [paymentTimer, setPaymentTimer] = useState<{
+    isExpired: boolean;
+    remainingMinutes: number;
+    remainingSeconds: number;
+  } | null>(null);
+
+  // Mutation to update order status when payment expires
+  const expireOrderMutation = useMutation({
+    mutationFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/orders/check-expired', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to check expired orders');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate orders query to refresh the order list
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/user'] });
+    }
+  });
+
+  // Track if we've already triggered expiration for this order
+  const [hasTriggeredExpiration, setHasTriggeredExpiration] = useState(false);
+
+  // Calculate remaining payment time for pending orders
+  useEffect(() => {
+    if ((order.status === "pending_payment" || order.status === "pending") && order.paymentExpiresAt) {
+      const updateTimer = () => {
+        const expiresAt = new Date(order.paymentExpiresAt);
+        const currentTime = new Date();
+        const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
+        const remainingMinutes = remainingTime / (1000 * 60);
+        const isExpired = remainingMinutes <= 0;
+        
+        setPaymentTimer({
+          isExpired,
+          remainingMinutes: Math.floor(remainingMinutes),
+          remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
+        });
+
+        // If timer just expired and we haven't triggered expiration yet
+        if (isExpired && !hasTriggeredExpiration && !expireOrderMutation.isPending) {
+          setHasTriggeredExpiration(true);
+          expireOrderMutation.mutate();
+        }
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setPaymentTimer(null);
+      setHasTriggeredExpiration(false);
+    }
+  }, [order.status, order.paymentExpiresAt, hasTriggeredExpiration, expireOrderMutation.isPending]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -28,8 +99,12 @@ export default function OrderCard({
         return <Badge className="bg-green-100 text-green-800">Confirmed</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case "pending_payment":
+        return <Badge className="bg-orange-100 text-orange-800">Pending Payment</Badge>;
       case "cancelled":
         return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>;
+      case "order_expired":
+        return <Badge className="bg-gray-100 text-gray-800">Order Expired</Badge>;
       case "completed":
         return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>;
       default:
@@ -82,13 +157,15 @@ export default function OrderCard({
   });
 
   // Get flight information - use flight data if available, otherwise use order details
-  const flightInfo = flight || {
-    flightNumber: order.flightNumber || "N/A",
-    airline: order.airline || "N/A",
-    departureAirport: order.departureAirport || "N/A", 
-    arrivalAirport: order.arrivalAirport || "N/A",
-    departureTime: order.departureTime || new Date().toISOString(),
-    duration: order.duration || "N/A",
+  const safeFlightInfo = {
+    flightNumber: (flight as any)?.flightNumber || (order as any).flightNumber || "N/A",
+    airline: (flight as any)?.airline || (order as any).airline || "N/A",
+    departureAirport:
+      (flight as any)?.departureAirport || (order as any).departureAirport || "N/A",
+    arrivalAirport: (flight as any)?.arrivalAirport || (order as any).arrivalAirport || "N/A",
+    departureTime:
+      (flight as any)?.departureTime || (order as any).departureTime || new Date().toISOString(),
+    duration: (flight as any)?.duration || (order as any).duration || "N/A",
   };
 
   return (
@@ -123,16 +200,16 @@ export default function OrderCard({
             <div className="flex items-center space-x-2 mb-2">
               <Plane className="h-4 w-4 text-airline-blue" />
               <span className="font-medium text-gray-900">
-                {flightInfo.departureAirport} →{" "}
-                {flightInfo.arrivalAirport}
+                {safeFlightInfo.departureAirport} →{" "}
+                {safeFlightInfo.arrivalAirport}
               </span>
             </div>
             <p className="text-sm text-gray-600">
-              {formatDate(flightInfo.departureTime)} •{" "}
-              {formatTime(flightInfo.departureTime)}
+              {formatDate(safeFlightInfo.departureTime)} •{" "}
+              {formatTime(safeFlightInfo.departureTime)}
             </p>
             <p className="text-sm text-gray-600">
-              {flightInfo.airline} {flightInfo.flightNumber}
+              {safeFlightInfo.airline} {safeFlightInfo.flightNumber}
             </p>
           </div>
 
@@ -142,18 +219,19 @@ export default function OrderCard({
               <span className="text-sm text-gray-600">Passenger</span>
             </div>
             <p className="font-medium text-gray-900">
-              {Array.isArray(order.passengerInfo) 
-                ? `${order.passengerInfo[0]?.firstName} ${order.passengerInfo[0]?.lastName}${order.passengerInfo.length > 1 ? ` +${order.passengerInfo.length - 1} more` : ''}`
-                : `${order.passengerInfo?.firstName || ''} ${order.passengerInfo?.lastName || ''}`
-              }
+              {Array.isArray(order.passengerInfo)
+                ? `${order.passengerInfo[0]?.firstName} ${order.passengerInfo[0]?.lastName}${order.passengerInfo.length > 1 ? ` +${order.passengerInfo.length - 1} more` : ""}`
+                : `${order.passengerInfo?.firstName || ""} ${order.passengerInfo?.lastName || ""}`}
             </p>
             <p className="text-sm text-gray-600">
-              {order.assignedSeats && Array.isArray(order.assignedSeats) && order.assignedSeats.length > 0
-                ? `Seats ${order.assignedSeats.map((seat: any) => seat.seatNumber).join(', ')}`
-                : order.seatId 
-                  ? `Seat ${order.assignedSeats?.[0]?.seatNumber || 'Assigned'}`
-                  : "Seat not selected"
-              } • Economy
+              {order.assignedSeats &&
+              Array.isArray(order.assignedSeats) &&
+              order.assignedSeats.length > 0
+                ? `Seats ${order.assignedSeats.map((seat: any) => seat.seatNumber).join(", ")}`
+                : order.seatId
+                  ? `Seat ${order.assignedSeats?.[0]?.seatNumber || "Assigned"}`
+                  : "Seat not selected"}{" "}
+              • Economy
             </p>
           </div>
 
@@ -181,19 +259,28 @@ export default function OrderCard({
             {(() => {
               const allServices: string[] = [];
               if (order.selectedServices?.length) {
-                allServices.push(...order.selectedServices.map((s: any) => s.name));
+                allServices.push(
+                  ...order.selectedServices.map((s: any) => s.name),
+                );
               }
               if (Array.isArray(order.passengerInfo)) {
                 order.passengerInfo.forEach((passenger: any) => {
                   if (passenger.services?.length) {
-                    allServices.push(...passenger.services.map((s: any) => s.name));
+                    allServices.push(
+                      ...passenger.services.map((s: any) => s.name),
+                    );
                   }
                 });
               }
-              return allServices.length > 0 && (
-                <p className="text-xs text-gray-500">
-                  {allServices.slice(0, 2).join(', ')}{allServices.length > 2 ? ` +${allServices.length - 2} more` : ''}
-                </p>
+              return (
+                allServices.length > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {allServices.slice(0, 2).join(", ")}
+                    {allServices.length > 2
+                      ? ` +${allServices.length - 2} more`
+                      : ""}
+                  </p>
+                )
               );
             })()}
           </div>
@@ -222,19 +309,60 @@ export default function OrderCard({
             </>
           )}
 
-          {order.status === "pending" && (
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              className="text-red-600 border-red-600 hover:bg-red-50"
-            >
-              Cancel Booking
-            </Button>
+          {order.paymentStatus === "pending" && (
+            <>
+              <Button
+                onClick={() =>
+                  setLocation(`/complete-payment/${order.orderNumber}`)
+                }
+                className="border border-green-600 bg-white text-green-600 hover:bg-green-50"
+                disabled={paymentTimer?.isExpired}
+              >
+                {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
+              </Button>
+              <Button
+                onClick={handleCancel}
+                variant="outline"
+                className="text-red-600 border-red-600 hover:bg-red-50"
+              >
+                Cancel Booking
+              </Button>
+            </>
           )}
         </div>
 
-        {/* Check-in Available Notice */}
-        {order.canCheckIn && !order.isCheckedIn && (
+        {/* Payment Timer Notice */}
+        {paymentTimer && !paymentTimer.isExpired && order.paymentStatus === "pending" && (
+          <div className="mt-4 p-3 bg-orange-100 border border-orange-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-orange-600" />
+              <p className="text-sm text-orange-800">
+                <strong>Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s</strong>
+              </p>
+            </div>
+            <p className="text-xs text-orange-700 mt-1">
+              Complete payment within 15 minutes to secure your booking.
+            </p>
+          </div>
+        )}
+
+        {/* Payment Expired Notice */}
+        {paymentTimer?.isExpired && order.paymentStatus === "pending" && (
+          <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-red-600" />
+              <p className="text-sm text-red-800">
+                <strong>Payment window expired</strong>
+              </p>
+            </div>
+            <p className="text-xs text-red-700 mt-1">
+              This order has expired. Please create a new booking.
+            </p>
+          </div>
+        )}
+
+        {/* Check-in Available Notice - Only show for confirmed orders where user hasn't checked in */}
+        {order.status === "confirmed" && order.canCheckIn && !order.isCheckedIn && (
           <div className="mt-4 p-3 bg-yellow-100 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
               <strong>Check-in now available!</strong> Complete your check-in up

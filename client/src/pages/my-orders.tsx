@@ -1,21 +1,57 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import OrderCard from "@/components/order/order-card";
+import { OrderCountdownCard } from "@/components/order-countdown-card";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { Package, Calendar, CheckCircle, XCircle } from "lucide-react";
+import {
+  Package,
+  Calendar,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MyOrders() {
   const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("all");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const { data: orders = [], isLoading, error } = useQuery({
+  const {
+    data: orders = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<any[]>({
     queryKey: ["/api/orders/user", user?.id],
     enabled: isAuthenticated && !!user?.id,
+    refetchOnMount: true, // Always refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    staleTime: 0, // Consider data immediately stale to ensure fresh data
+  });
+
+  // Mutation to check for expired orders
+  const checkExpiredOrdersMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/orders/check-expired");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.updatedCount > 0) {
+        // Refresh orders to show updated status
+        queryClient.invalidateQueries({
+          queryKey: ["/api/orders/user", user?.id],
+        });
+      }
+    },
   });
 
   useEffect(() => {
@@ -24,6 +60,41 @@ export default function MyOrders() {
     }
   }, [isAuthenticated, setLocation]);
 
+  // Refresh orders every time user navigates to this page
+  useEffect(() => {
+    if (isAuthenticated && user?.id) {
+      refetch();
+    }
+  }, [isAuthenticated, user?.id, refetch]);
+
+  // Handle order expiration callback
+  const handleOrderExpired = (orderNumber: string) => {
+    // Refresh orders to show updated status
+    queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
+
+    toast({
+      title: "Payment Failed",
+      description: `Payment failed for order ${orderNumber}`,
+      variant: "destructive",
+    });
+  };
+
+  // Check for expired orders when component mounts
+  useEffect(() => {
+    if (isAuthenticated && user?.id && orders.length > 0) {
+      // Check if there are any pending orders that might be expired
+      const hasPendingOrders = orders.some(
+        (order: any) =>
+          (order.status === "pending" || order.status === "pending_payment") &&
+          order.paymentStatus === "pending",
+      );
+
+      if (hasPendingOrders) {
+        checkExpiredOrdersMutation.mutate();
+      }
+    }
+  }, [isAuthenticated, user?.id, orders.length]);
+
   if (!isAuthenticated) {
     return null;
   }
@@ -31,16 +102,16 @@ export default function MyOrders() {
   const filterOrdersByStatus = (status: string) => {
     switch (status) {
       case "upcoming":
-        return orders.filter((order: any) => 
-          order.status === 'confirmed' || order.status === 'pending'
+        return orders.filter(
+          (order: any) =>
+            order.status === "confirmed" || order.status === "pending",
         );
       case "completed":
-        return orders.filter((order: any) => 
-          order.status === 'completed'
-        );
+        return orders.filter((order: any) => order.status === "completed");
       case "cancelled":
-        return orders.filter((order: any) => 
-          order.status === 'cancelled'
+        return orders.filter(
+          (order: any) =>
+            order.status === "cancelled" || order.status === "order_expired",
         );
       default:
         return orders;
@@ -68,9 +139,15 @@ export default function MyOrders() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Bookings</h1>
-          <p className="text-gray-600">Manage all your flight reservations and services</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              My Bookings
+            </h1>
+            <p className="text-gray-600">
+              Manage all your flight reservations and services
+            </p>
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -82,7 +159,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total Bookings</p>
-                <p className="text-xl font-bold text-gray-900">{orders.length}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {orders.length}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -94,7 +173,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Upcoming</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("upcoming")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("upcoming")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -106,7 +187,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("completed")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("completed")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -118,7 +201,9 @@ export default function MyOrders() {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Cancelled</p>
-                <p className="text-xl font-bold text-gray-900">{getTabCount("cancelled")}</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {getTabCount("cancelled")}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -127,17 +212,27 @@ export default function MyOrders() {
         {/* Filter Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="all">All Bookings ({getTabCount("all")})</TabsTrigger>
-            <TabsTrigger value="upcoming">Upcoming ({getTabCount("upcoming")})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({getTabCount("completed")})</TabsTrigger>
-            <TabsTrigger value="cancelled">Cancelled ({getTabCount("cancelled")})</TabsTrigger>
+            <TabsTrigger value="all">
+              All Bookings ({getTabCount("all")})
+            </TabsTrigger>
+            <TabsTrigger value="upcoming">
+              Upcoming ({getTabCount("upcoming")})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({getTabCount("completed")})
+            </TabsTrigger>
+            <TabsTrigger value="cancelled">
+              Cancelled ({getTabCount("cancelled")})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-6">
             {error && (
               <Card>
                 <CardContent className="p-6 text-center">
-                  <p className="text-red-600">Error loading bookings. Please try again.</p>
+                  <p className="text-red-600">
+                    Error loading bookings. Please try again.
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -149,19 +244,17 @@ export default function MyOrders() {
                     <Package className="w-8 h-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    {activeTab === "all" 
-                      ? "No bookings yet" 
-                      : `No ${activeTab} bookings`
-                    }
+                    {activeTab === "all"
+                      ? "No bookings yet"
+                      : `No ${activeTab} bookings`}
                   </h3>
                   <p className="text-gray-600 mb-6">
-                    {activeTab === "all" 
-                      ? "Start your journey by booking your first flight" 
-                      : `You don't have any ${activeTab} bookings at the moment`
-                    }
+                    {activeTab === "all"
+                      ? "Start your journey by booking your first flight"
+                      : `You don't have any ${activeTab} bookings at the moment`}
                   </p>
                   {activeTab === "all" && (
-                    <Button 
+                    <Button
                       onClick={() => setLocation("/")}
                       className="airline-button-primary"
                     >
@@ -175,7 +268,14 @@ export default function MyOrders() {
             {!error && filteredOrders.length > 0 && (
               <div className="space-y-6">
                 {filteredOrders.map((order: any) => (
-                  <OrderCard key={order.id} order={order} />
+                  <div key={order.id} className="space-y-3">
+                    {/* Order Countdown Timer for pending payment orders */}
+                    <OrderCountdownCard
+                      order={order}
+                      onOrderExpired={handleOrderExpired}
+                    />
+                    <OrderCard order={order} />
+                  </div>
                 ))}
               </div>
             )}
@@ -197,10 +297,12 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Book Another Flight</h4>
-                    <p className="text-sm text-gray-600">Search and book new flights</p>
+                    <p className="text-sm text-gray-600">
+                      Search and book new flights
+                    </p>
                   </div>
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   onClick={() => setLocation("/check-in")}
@@ -208,10 +310,12 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Web Check-in</h4>
-                    <p className="text-sm text-gray-600">Check-in for upcoming flights</p>
+                    <p className="text-sm text-gray-600">
+                      Check-in for upcoming flights
+                    </p>
                   </div>
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   className="h-16 text-left"
@@ -222,7 +326,9 @@ export default function MyOrders() {
                 >
                   <div>
                     <h4 className="font-semibold">Customer Support</h4>
-                    <p className="text-sm text-gray-600">Get help with your bookings</p>
+                    <p className="text-sm text-gray-600">
+                      Get help with your bookings
+                    </p>
                   </div>
                 </Button>
               </div>

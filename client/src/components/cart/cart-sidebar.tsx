@@ -2,9 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useCart } from "@/hooks/use-cart";
-import { Trash2, X, TrendingUp, TrendingDown } from "lucide-react";
+import { Trash2, X, TrendingUp, TrendingDown, Gift } from "lucide-react";
 import { useLocation } from "wouter";
-import { PriceChangeNotification } from "@/components/notifications/price-change-notification";
+
 
 export default function CartSidebar() {
   const { 
@@ -17,6 +17,8 @@ export default function CartSidebar() {
     total 
   } = useCart();
   const [, setLocation] = useLocation();
+  
+
 
   const handleProceedToCheckout = () => {
     setCartOpen(false);
@@ -57,6 +59,24 @@ export default function CartSidebar() {
                         <div className="text-xs text-gray-500 mt-1">
                           <p>{item.details.departureTime} • {item.details.duration}</p>
                           <p>{item.details.aircraft}</p>
+                        </div>
+                      )}
+                      
+                      {/* Loyalty Bundle Information */}
+                      {item.loyaltyBundle && (
+                        <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
+                          <div className="flex items-center gap-1 text-xs font-medium text-green-800">
+                            <Gift className="w-3 h-3" />
+                            {item.loyaltyBundle.bundleName}
+                          </div>
+                          {item.loyaltyBundle.discountInfo && (
+                            <div className="text-xs text-green-600 mt-1">
+                              {item.loyaltyBundle.discountInfo.description}
+                              {item.loyaltyBundle.discountInfo.type === 'complimentary' && ' (FREE)'}
+                              {item.loyaltyBundle.discountInfo.type === 'discount' && 
+                                ` (${item.loyaltyBundle.discountInfo.discountPercentage}% off)`}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -116,6 +136,63 @@ export default function CartSidebar() {
                       )}
                     </div>
                   )}
+
+                  {/* Dynamic Pricing Display for Flights */}
+                  {item.type === 'flight' && item.details?.dynamicPricing && (
+                    <div className="space-y-2">
+                      {/* Fare Hold Status */}
+                      {item.details.dynamicPricing.isLocked ? (
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                          🔒 Fare Protected
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          📈 Live Pricing
+                        </Badge>
+                      )}
+                      
+                      {/* Price Display with Cross-out (only if not locked) */}
+                      {!item.details.dynamicPricing.isLocked && 
+                       item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="line-through text-gray-400">
+                            ${parseFloat(item.details.dynamicPricing.basePrice).toFixed(2)}
+                          </span>
+                          <span className="font-medium text-gray-900">
+                            ${parseFloat(item.details.dynamicPricing.currentPrice).toFixed(2)}
+                          </span>
+                          {parseFloat(item.details.dynamicPricing.currentPrice) > parseFloat(item.details.dynamicPricing.basePrice) ? (
+                            <TrendingUp className="h-3 w-3 text-red-500" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3 text-green-500" />
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Price Difference (only if not locked) */}
+                      {!item.details.dynamicPricing.isLocked &&
+                       item.details.dynamicPricing.basePrice !== item.details.dynamicPricing.currentPrice && (
+                        <div className="text-xs">
+                          {parseFloat(item.details.dynamicPricing.currentPrice) > parseFloat(item.details.dynamicPricing.basePrice) ? (
+                            <span className="text-red-600">
+                              +${(parseFloat(item.details.dynamicPricing.currentPrice) - parseFloat(item.details.dynamicPricing.basePrice)).toFixed(2)} increase
+                            </span>
+                          ) : (
+                            <span className="text-green-600">
+                              -${(parseFloat(item.details.dynamicPricing.basePrice) - parseFloat(item.details.dynamicPricing.currentPrice)).toFixed(2)} decrease
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Fare Hold Expiry Info */}
+                      {item.details.dynamicPricing.isLocked && item.details.dynamicPricing.userFareHold && (
+                        <div className="text-xs text-green-600">
+                          Protected until {new Date(item.details.dynamicPricing.userFareHold.expiresAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">
@@ -138,6 +215,31 @@ export default function CartSidebar() {
                   <span>Subtotal</span>
                   <span>${subtotal.toFixed(2)}</span>
                 </div>
+                
+                {/* Loyalty Bundle Savings */}
+                {(() => {
+                  const loyaltyItems = items.filter(item => item.loyaltyBundle?.discountInfo);
+                  const totalSavings = loyaltyItems.reduce((sum, item) => {
+                    if (item.loyaltyBundle?.discountInfo) {
+                      return sum + item.loyaltyBundle.discountInfo.discount;
+                    }
+                    return sum;
+                  }, 0);
+                  
+                  if (totalSavings > 0) {
+                    return (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span className="flex items-center gap-1">
+                          <Gift className="w-3 h-3" />
+                          Loyalty Bundle Savings
+                        </span>
+                        <span>-${totalSavings.toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 <div className="flex justify-between text-sm">
                   <span>Taxes & Fees</span>
                   <span>${taxes.toFixed(2)}</span>
@@ -159,8 +261,7 @@ export default function CartSidebar() {
           )}
         </div>
         
-        {/* Price Change Notifications */}
-        <PriceChangeNotification cartItems={items} />
+
       </SheetContent>
     </Sheet>
   );

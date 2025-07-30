@@ -18,8 +18,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useCart } from '@/hooks/use-cart';
 import { apiRequest } from '@/lib/queryClient';
-import { Plane, Users, CreditCard, MapPin, CalendarDays, Passport, Plus, UserCheck, Edit } from 'lucide-react';
-import LoyaltyTierDisplay from '@/components/loyalty-tier-display';
+import { Plane, Users, CreditCard, MapPin, CalendarDays, FileText, Plus, UserCheck, Edit, ArrowLeft } from 'lucide-react';
+
+
 
 const passengerSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -48,38 +49,15 @@ export default function Checkout() {
   const passengerCount = flight?.details?.passengerCount || 1;
 
   // Fetch saved passengers
-  const { data: savedPassengers = [] } = useQuery({
+  const { data: savedPassengers = [] }: { data: any[] } = useQuery({
     queryKey: ['/api/passengers'],
     enabled: !!user,
   });
 
-  // Fetch user's loyalty status and available bundles
-  const { data: loyaltyStatus } = useQuery({
-    queryKey: ['/api/loyalty/user', user?.id, 'status'],
-    enabled: !!user,
-  });
 
-  const { data: loyaltyBundles = [] } = useQuery({
-    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName],
-    queryFn: async () => {
-      if (!loyaltyStatus?.currentTier?.tierName) return [];
-      const response = await fetch(`/api/loyalty/bundles/${loyaltyStatus.currentTier.tierName}?phase=booking`);
-      return response.json();
-    },
-    enabled: !!loyaltyStatus?.currentTier?.tierName,
-  });
 
-  // State for selected loyalty bundles
-  const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
 
-  // Handler for loyalty bundle toggling
-  const handleBundleToggle = (bundleId: number) => {
-    setSelectedLoyaltyBundles(prev => 
-      prev.includes(bundleId) 
-        ? prev.filter(id => id !== bundleId)
-        : [...prev, bundleId]
-    );
-  };
+
 
   // State for selected passengers (mix of saved and new)
   const [selectedPassengers, setSelectedPassengers] = useState<any[]>([]);
@@ -99,6 +77,10 @@ export default function Checkout() {
       setSelectedPassengers(initialSelection);
     }
   }, [passengerCount]);
+
+  const handleBack = () => {
+    setLocation('/services');
+  };
 
   // Mutation to save new passenger
   const savePassengerMutation = useMutation({
@@ -235,8 +217,8 @@ export default function Checkout() {
       flightId: flight?.flightId,
       items: items, // Send all items including services with passenger attribution
       total: total,
-      loyaltyTier: loyaltyStatus?.currentTier?.tierName,
-      selectedLoyaltyBundles: selectedLoyaltyBundles,
+      loyaltyTier: null,
+      selectedLoyaltyBundles: [],
     };
 
     createOrderMutation.mutate(orderData);
@@ -261,6 +243,18 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
+        {/* Back Navigation */}
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Services
+          </Button>
+        </div>
+
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Passenger Information</h1>
           <p className="text-gray-600">Please provide passenger details for your booking</p>
@@ -434,16 +428,6 @@ export default function Checkout() {
 
               {/* Order Summary */}
               <div className="space-y-6">
-                {/* Loyalty Tier Display */}
-                {loyaltyStatus && loyaltyBundles.length > 0 && (
-                  <LoyaltyTierDisplay
-                    loyaltyStatus={loyaltyStatus}
-                    loyaltyBundles={loyaltyBundles}
-                    selectedBundles={selectedLoyaltyBundles}
-                    onBundleToggle={handleBundleToggle}
-                  />
-                )}
-
                 <Card>
                   <CardHeader>
                     <CardTitle>Booking Summary</CardTitle>
@@ -570,6 +554,8 @@ export default function Checkout() {
             )}
           </DialogContent>
         </Dialog>
+        
+
       </div>
     </div>
   );

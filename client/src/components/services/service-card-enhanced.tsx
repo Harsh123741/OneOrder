@@ -23,6 +23,8 @@ interface ServiceCardEnhancedProps {
         variant: 'destructive' | 'default' | 'secondary';
       };
     };
+    recommendationReason?: string;
+    userFrequency?: number;
   };
   phase: string;
   passengerId?: number;
@@ -153,11 +155,34 @@ export default function ServiceCardEnhanced({ service, phase, passengerId }: Ser
 
   return (
     <Card className={`transition-all duration-200 hover:shadow-lg border-l-4 ${getPhaseColor(phase)}`}>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-lg font-semibold text-gray-900 leading-tight">
-            {service.name}
-          </CardTitle>
+      <CardHeader className="px-4 py-3">
+        <div className="mb-2">
+          {/* Recommendation badges */}
+          {(service.userFrequency || service.recommendationReason) && (
+            <div className="flex justify-between">
+              {service.userFrequency && service.userFrequency > 0 && (
+                <div className="z-10">
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs shadow-sm">
+                    {service.userFrequency}x before
+                  </Badge>
+                </div>
+              )}
+              {service.recommendationReason && (
+                <div className="z-10">
+                  <Badge variant="outline" className="bg-white/95 text-xs border-amber-300 text-amber-700 shadow-sm">
+                    {service.recommendationReason}
+                  </Badge>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-between items-start px-2">
+          <div className="flex-1">
+            <CardTitle className="text-lg font-semibold text-gray-900 leading-tight">
+              {service.name}
+            </CardTitle>
+          </div>
           <div className="text-right flex flex-col items-end gap-1">
             {/* Dynamic Pricing Tags */}
             {service.dynamicPricing?.pricingTag?.tag && (
