@@ -60,20 +60,38 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           {/* Flight Details */}
           <div className="flex-1 space-y-3 lg:space-y-4 w-full lg:w-auto">
             {/* Airline Info */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-airline-blue rounded-lg flex items-center justify-center">
                   <Plane className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900 text-sm sm:text-base">
-                    {flight.airline}
+                  <h3 className="font-semibold text-gray-900 text-sm sm:text-lg">
+                    {flight.flightNumber}
                   </h3>
                   <p className="text-xs sm:text-sm text-gray-600">
-                    {flight.flightNumber}
+                    {flight.airline}
                   </p>
                 </div>
               </div>
+              {/* Desktop price display */}
+              <div className="">
+                <DynamicPricingDisplay
+                  flightId={flight.id}
+                  currentPrice={parseFloat(flight.price)}
+                  basePrice={parseFloat(flight.price)}
+                  showFareHold={false}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Aircraft Info */}
+            <div className="flex items-center sm:text-sm text-sm gap-10 text-gray-600">
+              <span className=" my-auto flex items-center space-x-1">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span>{flight.aircraft}</span>
+              </span>
             </div>
 
             {/* Route and Times */}
@@ -128,33 +146,10 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                 </div>
               </div>
             </div>
-
-            {/* Aircraft Info */}
-            <div className="flex items-center sm:text-sm text-sm gap-10 text-gray-600">
-              <span className=" my-auto flex items-center space-x-1">
-                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{flight.aircraft}</span>
-              </span>
-              <span className="my-auto flex items-center space-x-1">
-                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{flight.availableSeats} seats left</span>
-              </span>
-            </div>
           </div>
 
           {/* Price and Actions */}
           <div className="text-center lg:text-right space-y-3 w-full lg:w-auto lg:min-w-[250px] xl:min-w-[280px]">
-            {/* Desktop price display */}
-            <div className="">
-              <DynamicPricingDisplay
-                flightId={flight.id}
-                currentPrice={parseFloat(flight.price)}
-                basePrice={parseFloat(flight.price)}
-                showFareHold={false}
-                className="text-sm"
-              />
-            </div>
-
             <div className="space-y-2 ">
               <Button
                 onClick={handleSelectFlight}
@@ -165,21 +160,10 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
 
               <div className="text-xs text-gray-500">
                 {flight.class.charAt(0).toUpperCase() + flight.class.slice(1)}{" "}
-                Class • {flight.availableSeats || 0} seats left
+                Class
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Expandable Details */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-airline-blue hover:text-blue-700 w-full sm:w-auto"
-          >
-            View flight details
-          </Button>
         </div>
       </CardContent>
 

@@ -157,48 +157,10 @@ export default function DynamicPricingDisplay({
   };
 
   return (
-    <Card
-      className={`${className} border-2 border-dashed border-yellow-300 bg-gradient-to-r from-yellow-50 to-orange-50`}
-    >
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
-            Price
-          </div>
-          <Badge
-            variant={
-              priceChange > 0
-                ? "destructive"
-                : priceChange < 0
-                  ? "secondary"
-                  : "outline"
-            }
-          >
-            {priceChange > 0 ? "+" : ""}
-            {priceChange.toFixed(1)}%
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Current Price Display */}
-        <div className="text-center">
-          <div className="text-3xl font-bold text-gray-900">
-            ${currentPriceNum.toFixed(2)}
-          </div>
-          <div className="text-sm text-gray-600">
-            Base: ${basePriceNum.toFixed(2)}
-          </div>
-          <div className={`text-sm font-medium ${getPriceChangeColor()}`}>
-            {priceChange > 0 ? "+" : ""}$
-            {(currentPriceNum - basePriceNum).toFixed(2)}(
-            {priceChange > 0 ? "+" : ""}
-            {priceChange.toFixed(1)}%)
-          </div>
-        </div>
-
+    <div className={``}>
+      <CardContent className="p-6 flex flex-col gap-1 pt-[0px] pb-[0px] pl-[13px] pr-[13px]">
         {/* Demand Indicator */}
-        <div className="text-center">
+        <div className="text-center text-xs">
           {demandLevel > 80 ? (
             <Badge variant="destructive" className="text-xs">
               🔥 High Demand - Only Few Left!
@@ -217,13 +179,13 @@ export default function DynamicPricingDisplay({
             </Badge>
           )}
         </div>
-
-        {/* Live Update Indicator */}
-        <div className="text-xs text-gray-500 text-center flex items-center justify-center gap-1">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          Live pricing • Updates every 30s
+        {/* Current Price Display */}
+        <div className="text-center">
+          <div className="text-3xl font-bold text-gray-900">
+            ${currentPriceNum.toFixed(2)}
+          </div>
         </div>
       </CardContent>
-    </Card>
+    </div>
   );
 }
