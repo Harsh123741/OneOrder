@@ -127,7 +127,29 @@ export default function DynamicPricingDisplay({
   const currentPriceNum = parseFloat(pricing.currentPrice);
   const basePriceNum = parseFloat(pricing.basePrice);
   const priceChange = ((currentPriceNum - basePriceNum) / basePriceNum) * 100;
-  const demandLevel = Math.min((pricing.totalBookings / 20) * 100, 100); // Assume max 20 bookings for full demand
+  // Calculate demand level based on actual demand multiplier and inventory
+  const demandMultiplier = parseFloat(pricing.demandMultiplier || "1.0");
+  const inventoryLevel = pricing.inventoryLevel || 100;
+  const totalBookings = pricing.totalBookings || 0;
+
+  // More realistic demand level calculation based on server logic
+  const getDemandBadge = () => {
+    if (inventoryLevel < 5) {
+      return <Badge variant="destructive" className="text-xs">🔥 Only Few Left!</Badge>;
+    } else if (inventoryLevel < 15) {
+      return <Badge variant="destructive" className="text-xs">⚠️ Limited Stock</Badge>;
+    } else if (demandMultiplier > 1.3) {
+      return <Badge variant="destructive" className="text-xs">📈 High Demand</Badge>;
+    } else if (totalBookings > 30) {
+      return <Badge variant="secondary" className="text-xs">⚡ Popular Flight</Badge>;
+    } else if (demandMultiplier > 1.1) {
+      return <Badge variant="secondary" className="text-xs">📊 Moderate Demand</Badge>;
+    } else if (demandMultiplier < 0.9) {
+      return <Badge variant="outline" className="text-xs">💰 Great Value</Badge>;
+    } else {
+      return <Badge variant="outline" className="text-xs">💺 Good Availability</Badge>;
+    }
+  };
 
   const getTrendIcon = () => {
     switch (priceChangeDirection) {
@@ -151,23 +173,7 @@ export default function DynamicPricingDisplay({
       <CardContent className="p-6 flex flex-col gap-1 pt-[0px] pb-[0px]">
         {/* Demand Indicator */}
         <div className="text-center text-xs">
-          {demandLevel > 80 ? (
-            <Badge variant="destructive" className="text-xs">
-              🔥 High Demand - Only Few Left!
-            </Badge>
-          ) : demandLevel > 60 ? (
-            <Badge variant="secondary" className="text-xs">
-              ⚡ Fast Booking - Popular Flight
-            </Badge>
-          ) : demandLevel > 40 ? (
-            <Badge variant="outline" className="text-xs">
-              📈 Moderate Demand
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs">
-              💺 Good Availability
-            </Badge>
-          )}
+          {getDemandBadge()}
         </div>
         {/* Current Price Display */}
         <div className="text-end">

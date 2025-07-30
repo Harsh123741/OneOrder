@@ -12,7 +12,7 @@ import CartRecommendations from "@/components/cart/cart-recommendations";
 export default function Cart() {
   const [, setLocation] = useLocation();
   const { items, removeItem, updateQuantity, clearCart } = useCart();
-  const { getSubtotal, getTaxes, getTotal } = useCartStore();
+  const { getSubtotal, getOriginalSubtotal, getDiscountAmount, getTaxes, getTotal } = useCartStore();
   const { user } = useAuth();
   const [isClearing, setIsClearing] = useState(false);
 
@@ -209,7 +209,26 @@ export default function Cart() {
                             <h3 className="font-semibold text-gray-900">{item.name}</h3>
                             <p className="text-sm text-gray-600">{item.description}</p>
                             
-                            {item.details?.discount && parseInt(item.details.discount) > 0 && (
+                            {/* Show loyalty bundle badge */}
+                            {item.details?.loyaltyBundle?.isComplimentary && (
+                              <div className="mt-2">
+                                <Badge className="bg-green-100 text-green-800">
+                                  Complimentary - {item.details.loyaltyBundle.bundleName}
+                                </Badge>
+                              </div>
+                            )}
+                            
+                            {/* Show discount badge for non-complimentary bundle discounts */}
+                            {item.details?.loyaltyBundle && !item.details.loyaltyBundle.isComplimentary && (
+                              <div className="mt-2">
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  {item.details.loyaltyBundle.discountPercentage}% tier discount
+                                </Badge>
+                              </div>
+                            )}
+                            
+                            {/* Show regular discount for non-bundle items */}
+                            {item.details?.discount && parseInt(item.details.discount) > 0 && !item.details?.loyaltyBundle && (
                               <div className="mt-2">
                                 <Badge className="bg-green-100 text-green-800">
                                   {item.details.discount}% savings
@@ -219,7 +238,11 @@ export default function Cart() {
                           </div>
                           
                           <div className="text-right flex items-center space-x-2">
-                            <div className="text-xl font-bold text-gray-900">${item.price.toFixed(2)}</div>
+                            {item.details?.loyaltyBundle?.isComplimentary ? (
+                              <div className="text-xl font-bold text-green-600">FREE</div>
+                            ) : (
+                              <div className="text-xl font-bold text-gray-900">${item.price.toFixed(2)}</div>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -246,6 +269,20 @@ export default function Cart() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
+                  {getDiscountAmount() > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Original Subtotal</span>
+                      <span className="font-medium text-gray-500 line-through">${getOriginalSubtotal().toFixed(2)}</span>
+                    </div>
+                  )}
+                  
+                  {getDiscountAmount() > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600">Discount Savings</span>
+                      <span className="font-medium text-green-600">-${getDiscountAmount().toFixed(2)}</span>
+                    </div>
+                  )}
+                  
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">${getSubtotal().toFixed(2)}</span>
@@ -262,6 +299,13 @@ export default function Cart() {
                     <span>Total</span>
                     <span className="text-airline-blue">${getTotal().toFixed(2)}</span>
                   </div>
+                  
+                  {getDiscountAmount() > 0 && (
+                    <div className="flex justify-between text-sm text-green-600">
+                      <span>You saved</span>
+                      <span className="font-medium">${getDiscountAmount().toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 pt-4">

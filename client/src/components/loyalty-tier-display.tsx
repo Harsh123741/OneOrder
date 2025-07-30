@@ -80,21 +80,29 @@ export default function LoyaltyTierDisplay({
             description: 'Complimentary with your tier'
           };
 
+          // Determine service name with bundle suffix if multiple services
+          const serviceName = bundleServices.length > 1 
+            ? `${bundle.bundleName} Bundle` 
+            : service.name;
+
           await addItem({
-            id: service.id,
+            id: `service-${service.id}-bundle-${bundle.id}`,
             type: 'service',
-            name: service.name,
-            description: service.description,
+            name: serviceName,
+            description: bundle.description || service.description,
             price: 0, // FREE for complimentary services
             quantity: 1,
             serviceId: service.id,
-            loyaltyBundle: {
-              bundleId: bundle.id,
-              bundleName: bundle.bundleName,
-              tierName: bundle.tierName,
-              isComplimentary: bundle.isComplimentary,
-              discountPercentage: bundle.discountPercentage,
-              discountInfo
+            details: {
+              originalPrice: parseFloat(service.price),
+              loyaltyBundle: {
+                bundleId: bundle.id,
+                bundleName: bundle.bundleName,
+                tierName: bundle.tierName,
+                isComplimentary: bundle.isComplimentary,
+                discountPercentage: bundle.discountPercentage,
+                discountInfo
+              }
             }
           });
         }

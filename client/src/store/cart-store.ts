@@ -20,6 +20,8 @@ interface CartState {
   toggleCart: () => void;
   setCartOpen: (open: boolean) => void;
   getSubtotal: () => number;
+  getOriginalSubtotal: () => number;
+  getDiscountAmount: () => number;
   getTaxes: () => number;
   getTotal: () => number;
   getItemCount: () => number;
@@ -431,7 +433,29 @@ export const useCartStore = create<CartState>()(
       
       getSubtotal: () => {
         const { items } = get();
-        return items.reduce((total, item) => total + (item.price * item.quantity), 0);
+        return items.reduce((total, item) => {
+          // Handle complimentary services - they should be free
+          const price = item.details?.loyaltyBundle?.isComplimentary ? 0 : item.price;
+          return total + (price * item.quantity);
+        }, 0);
+      },
+      
+      getOriginalSubtotal: () => {
+        const { items } = get();
+        return items.reduce((total, item) => {
+          // Use original price (before discounts) for calculating savings
+          const originalPrice = item.details?.originalPrice || item.price;
+          return total + (originalPrice * item.quantity);
+        }, 0);
+      },
+      
+      getDiscountAmount: () => {
+        const { items } = get();
+        return items.reduce((total, item) => {
+          const originalPrice = item.details?.originalPrice || item.price;
+          const currentPrice = item.details?.loyaltyBundle?.isComplimentary ? 0 : item.price;
+          return total + ((originalPrice - currentPrice) * item.quantity);
+        }, 0);
       },
       
       getTaxes: () => {
