@@ -43,7 +43,7 @@ export default function FlightSelectionModal({
         flightId: flight.id,
         holdDuration: duration,
         holdPrice: price,
-        lockedFarePrice: parseFloat(flight.price),
+        lockedFarePrice: parseFloat(currentPrice),
         paymentMethod: paymentMethod
       });
       return response.json();
@@ -51,7 +51,7 @@ export default function FlightSelectionModal({
     onSuccess: (data) => {
       toast({
         title: "Fare Hold Purchased",
-        description: `Flight price locked at $${parseFloat(flight.price).toFixed(2)} for ${selectedHold?.duration} hours`,
+        description: `Flight price locked at $${parseFloat(currentPrice).toFixed(2)} for ${selectedHold?.duration} hours`,
       });
       
       // Store selected flight with fare hold data
@@ -59,7 +59,7 @@ export default function FlightSelectionModal({
         ...flight,
         fareHold: {
           id: data.id,
-          lockedFarePrice: parseFloat(flight.price),
+          lockedFarePrice: parseFloat(currentPrice),
           expiresAt: data.expiresAt,
           duration: selectedHold?.duration
         }
@@ -132,6 +132,16 @@ export default function FlightSelectionModal({
     return `$${parseFloat(price.toString()).toFixed(2)}`;
   };
 
+  // Get the actual current price - use dynamic pricing if available, otherwise use base price
+  const getCurrentPrice = () => {
+    if (flight.dynamicPricing?.currentPrice) {
+      return flight.dynamicPricing.currentPrice;
+    }
+    return flight.price;
+  };
+
+  const currentPrice = getCurrentPrice();
+
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -142,7 +152,7 @@ export default function FlightSelectionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto w-[95vw] sm:w-[90vw] lg:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Select Flight Options</DialogTitle>
           <DialogDescription>
@@ -166,7 +176,7 @@ export default function FlightSelectionModal({
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-airline-blue">
-                    {formatPrice(flight.price)}
+                    {formatPrice(currentPrice)}
                   </p>
                   <p className="text-sm text-gray-500">per person</p>
                 </div>
@@ -175,7 +185,7 @@ export default function FlightSelectionModal({
           </Card>
 
           {/* Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Continue Without Fare Hold */}
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-6">
@@ -259,7 +269,7 @@ export default function FlightSelectionModal({
 
       {/* Fare Hold Payment Modal */}
       <Dialog open={fareHoldPaymentOpen} onOpenChange={setFareHoldPaymentOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[95vh] overflow-y-auto w-[95vw] sm:w-[90vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5 text-blue-600" />
@@ -283,7 +293,7 @@ export default function FlightSelectionModal({
                 </div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">Current Price:</span>
-                  <span className="font-bold text-green-600">${parseFloat(flight.price).toFixed(2)}</span>
+                  <span className="font-bold text-green-600">${parseFloat(currentPrice).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">Hold Duration:</span>
@@ -300,13 +310,13 @@ export default function FlightSelectionModal({
               </div>
 
               <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-800">
-                <strong>Price Protection:</strong> Your flight price will be locked at ${parseFloat(flight.price).toFixed(2)} for {selectedHold.duration} hours, even if market prices increase.
+                <strong>Price Protection:</strong> Your flight price will be locked at ${parseFloat(currentPrice).toFixed(2)} for {selectedHold.duration} hours, even if market prices increase.
               </div>
 
               {/* Payment Method Selection */}
               <div className="space-y-3">
                 <h4 className="font-medium text-gray-900">Select Payment Method</h4>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Button
                     variant={selectedPaymentMethod === 'credit_card' ? 'default' : 'outline'}
                     className="flex flex-col items-center p-4 h-auto"

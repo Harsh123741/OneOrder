@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, Plane, Calendar } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
+import { useQuery } from "@tanstack/react-query";
 import DynamicPricingDisplay from "@/components/dynamic-pricing-display";
 import FareHoldButton from "@/components/fare-hold-button";
 import FlightSelectionModal from "./flight-selection-modal";
@@ -18,6 +19,31 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
   const { addFlight } = useCart();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [flightWithPricing, setFlightWithPricing] = useState(flight);
+
+  // Fetch current dynamic pricing data for this flight
+  const { data: pricingData } = useQuery({
+    queryKey: [`/api/pricing/flight/${flight.id}`],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Update flight data with current pricing when available
+  useEffect(() => {
+    if (pricingData) {
+      setFlightWithPricing({
+        ...flight,
+        dynamicPricing: {
+          currentPrice: pricingData.currentPrice,
+          basePrice: pricingData.basePrice,
+          demandMultiplier: pricingData.demandMultiplier,
+          timeMultiplier: pricingData.timeMultiplier,
+          isLocked: pricingData.isLocked,
+          userFareHold: pricingData.userFareHold
+        },
+        price: pricingData.currentPrice // Update the main price field
+      });
+    }
+  }, [pricingData, flight]);
 
   const handleSelectFlight = () => {
     if (onSelect) {
@@ -138,11 +164,11 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
           </div>
 
           {/* Price and Actions */}
-          <div className="text-center lg:text-right space-y-3 w-full lg:w-auto lg:min-w-[250px] xl:min-w-[280px]">
-            <div className="space-y-2 ">
+          <div className="text-center lg:text-right space-y-3 w-full lg:w-auto lg:min-w-[200px] xl:min-w-[250px]">
+            <div className="space-y-2">
               <Button
                 onClick={handleSelectFlight}
-                className="w-full xl:w-auto airline-button-primary"
+                className="w-full lg:w-auto airline-button-primary"
               >
                 Select Flight
               </Button>
@@ -158,7 +184,7 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
 
       {/* Flight Selection Modal */}
       <FlightSelectionModal
-        flight={flight}
+        flight={flightWithPricing}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
