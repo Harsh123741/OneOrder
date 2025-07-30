@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Plane, Calendar, MapPin, Users, Plus, Utensils, Shield, Briefcase, Wifi, Package, CreditCard } from "lucide-react";
+import { Clock, Plane, Calendar, MapPin, Users, Plus, Utensils, Shield, Briefcase, Wifi, Package, CreditCard, Trash2, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { useQuery } from "@tanstack/react-query";
@@ -19,12 +19,13 @@ interface FlightCardProps {
 
 export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps) {
   const [, setLocation] = useLocation();
-  const { addItem } = useCart();
+  const { addItem, items, removeItem } = useCart();
   const { toast } = useToast();
   const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [flightWithPricing, setFlightWithPricing] = useState(flight);
   const [addingService, setAddingService] = useState<string | null>(null);
+  const [showProceedButton, setShowProceedButton] = useState(false);
 
   // Fetch current dynamic pricing data for this flight
   const { data: pricingData } = useQuery({
@@ -70,13 +71,33 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
     }
   };
 
+  const handleFlightAdded = () => {
+    setShowProceedButton(true);
+    setIsModalOpen(false);
+  };
+
+  const handleProceed = () => {
+    setLocation('/cart');
+  };
+
+  const isServiceInCart = (serviceId: string) => {
+    return items.some(item => item.id === serviceId || item.serviceId === parseInt(serviceId));
+  };
+
+  const removeServiceFromCart = (serviceId: string) => {
+    const itemToRemove = items.find(item => item.id === serviceId || item.serviceId === parseInt(serviceId));
+    if (itemToRemove) {
+      removeItem(itemToRemove.id);
+    }
+  };
+
   const handleAddServiceToCart = async (service: any, bundlePrice?: number) => {
     setAddingService(service.id);
     
     try {
       const serviceItem = {
         id: `service-${service.id}-${Date.now()}`,
-        type: 'service',
+        type: 'service' as const,
         name: service.name,
         description: service.description,
         price: bundlePrice || parseFloat(service.price),
@@ -171,7 +192,13 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
   ];
 
   // Filter booking phase loyalty bundles
-  const bookingBundles = loyaltyBundles ? loyaltyBundles.filter((bundle: any) => bundle.phase === 'booking') : [];
+  const bookingBundles = Array.isArray(loyaltyBundles) ? loyaltyBundles.filter((bundle: any) => bundle.phase === 'booking') : [];
+
+  // Check if flight exists in cart
+  const isFlightInCart = items.some(item => item.type === 'flight' && item.flightId === flight.id);
+
+  // Check if fare hold should be shown (only before flight booking)
+  const shouldShowFareHold = !isFlightInCart;
 
   return (
     <Card className="airline-card overflow-hidden">
@@ -189,13 +216,20 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 text-sm sm:text-lg">
-                      {flight.airline}
+                      {flight.flightNumber}
                     </h3>
-                    <p className="text-gray-600 text-xs sm:text-sm">{flight.aircraft}</p>
                   </div>
                 </div>
-                {/* High Demand Badge */}
-                <Badge className="bg-red-500 text-white text-xs">High Demand</Badge>
+                <div className="flex flex-col gap-1">
+                  {/* High Demand Badge */}
+                  <Badge className="bg-red-500 text-white text-xs">High Demand</Badge>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-airline-blue">
+                      ${flightWithPricing.price || flight.price}
+                    </div>
+                    <p className="text-sm text-gray-600">Direct Flight</p>
+                  </div>
+                </div>
               </div>
 
               {/* Route and Times */}
@@ -239,19 +273,23 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
             {/* Price and Actions */}
             <div className="flex flex-col items-end space-y-3 w-full lg:w-auto">
-              <div className="text-right">
-                <div className="text-2xl font-bold text-airline-blue">
-                  ${flightWithPricing.price || flight.price}
-                </div>
-                <p className="text-sm text-gray-600">Direct Flight</p>
-              </div>
-              <Button
-                onClick={handleSelectFlight}
-                className="w-full lg:w-auto bg-airline-blue hover:bg-airline-blue-dark text-white px-6"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Flight
-              </Button>
+              {showProceedButton || isFlightInCart ? (
+                <Button
+                  onClick={handleProceed}
+                  className="w-full lg:w-auto bg-green-600 hover:bg-green-700 text-white px-6"
+                >
+                  Proceed to Cart
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSelectFlight}
+                  className="w-full lg:w-auto bg-airline-blue hover:bg-airline-blue-dark text-white px-6"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Flight
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -275,26 +313,40 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                     <div className="flex-1">
                       <h5 className="font-medium text-gray-900">{offer.name}</h5>
                       <p className="text-sm text-gray-600 mb-2">{offer.description}</p>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className="text-xs text-gray-500 line-through">${offer.originalPrice}</span>
-                          <span className="text-lg font-bold text-orange-600 ml-2">${offer.bundlePrice}</span>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-gray-500 ">If Bought Seperately: <span className="line-through">${offer.originalPrice}</span></span>
+                          <span className="">
+                            Offer Price:<span className="text-lg font-bold text-orange-600 ml-2">${offer.bundlePrice}</span>
+                          </span>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddServiceToCart({
-                            id: offer.id,
-                            name: offer.name,
-                            description: offer.description,
-                            price: offer.originalPrice.toString(),
-                            phase: 'booking'
-                          }, offer.bundlePrice)}
-                          disabled={addingService === offer.id}
-                          className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3"
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add to Cart
-                        </Button>
+                        {isServiceInCart(offer.id) ? (
+                          <Button
+                            size="sm"
+                            onClick={() => removeServiceFromCart(offer.id)}
+                            disabled={addingService === offer.id}
+                            className="bg-red-500 hover:bg-red-600 text-white text-xs px-3"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Remove
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddServiceToCart({
+                              id: offer.id,
+                              name: offer.name,
+                              description: offer.description,
+                              price: offer.originalPrice.toString(),
+                              phase: 'booking'
+                            }, offer.bundlePrice)}
+                            disabled={addingService === offer.id}
+                            className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add to Cart
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -332,21 +384,33 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                             <span className="text-lg font-bold text-blue-600">{bundle.discountPercentage}% off</span>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleAddServiceToCart({
-                            id: bundle.id,
-                            name: bundle.bundleName,
-                            description: bundle.description,
-                            price: "0",
-                            phase: 'booking'
-                          }, bundle.isComplimentary ? 0 : undefined)}
-                          disabled={addingService === bundle.id.toString()}
-                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3"
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          Add to Cart
-                        </Button>
+                        {isServiceInCart(bundle.id.toString()) ? (
+                          <Button
+                            size="sm"
+                            onClick={() => removeServiceFromCart(bundle.id.toString())}
+                            disabled={addingService === bundle.id.toString()}
+                            className="bg-red-500 hover:bg-red-600 text-white text-xs px-3"
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Remove
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddServiceToCart({
+                              id: bundle.id,
+                              name: bundle.bundleName,
+                              description: bundle.description,
+                              price: "0",
+                              phase: 'booking'
+                            }, bundle.isComplimentary ? 0 : undefined)}
+                            disabled={addingService === bundle.id.toString()}
+                            className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add to Cart
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -356,77 +420,6 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
           </div>
         )}
 
-        {/* Additional Services */}
-        <div className="border-t border-gray-200 p-4 sm:p-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Plus className="w-5 h-5 text-gray-600" />
-            <h4 className="font-semibold text-gray-900">Additional Services</h4>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg border p-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Package className="h-4 w-4 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <h5 className="font-medium text-gray-900">Extra Baggage</h5>
-                  <p className="text-sm text-gray-600 mb-2">Additional 23kg checked bag</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-gray-900">$45</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAddServiceToCart({
-                        id: 'extra-baggage',
-                        name: 'Extra Baggage',
-                        description: 'Additional 23kg checked bag',
-                        price: "45",
-                        phase: 'booking'
-                      })}
-                      disabled={addingService === 'extra-baggage'}
-                      className="text-xs px-3"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add to Cart
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border p-4">
-              <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Wifi className="h-4 w-4 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <h5 className="font-medium text-gray-900">WiFi Premium</h5>
-                  <p className="text-sm text-gray-600 mb-2">High-speed internet</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-gray-900">$25</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAddServiceToCart({
-                        id: 'wifi-premium',
-                        name: 'WiFi Premium',
-                        description: 'High-speed internet',
-                        price: "25",
-                        phase: 'booking'
-                      })}
-                      disabled={addingService === 'wifi-premium'}
-                      className="text-xs px-3"
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add to Cart
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </CardContent>
 
       {/* Flight Selection Modal */}
@@ -434,6 +427,8 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
         flight={flightWithPricing}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onFlightAdded={handleFlightAdded}
+        showFareHold={shouldShowFareHold}
       />
     </Card>
   );

@@ -20,12 +20,16 @@ interface FlightSelectionModalProps {
   flight: any;
   isOpen: boolean;
   onClose: () => void;
+  onFlightAdded?: () => void;
+  showFareHold?: boolean;
 }
 
 export default function FlightSelectionModal({
   flight,
   isOpen,
   onClose,
+  onFlightAdded,
+  showFareHold = true,
 }: FlightSelectionModalProps) {
   const [, setLocation] = useLocation();
   const { addFlight } = useCart();
@@ -73,12 +77,14 @@ export default function FlightSelectionModal({
       // Add flight to cart with locked price (no fare hold service added to cart since it's already paid)
       addFlight(flightWithFareHold, [], passengerCount);
 
-      // Close modals and navigate to services
+      // Close modals and notify parent
       setFareHoldPaymentOpen(false);
       setSelectedHold(null);
       setSelectedPaymentMethod('');
       onClose();
-      setLocation("/services");
+      if (onFlightAdded) {
+        onFlightAdded();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -110,7 +116,9 @@ export default function FlightSelectionModal({
     });
 
     onClose();
-    setLocation("/services");
+    if (onFlightAdded) {
+      onFlightAdded();
+    }
   };
 
   const handleSelectWithFareHold = () => {
@@ -185,7 +193,7 @@ export default function FlightSelectionModal({
           </Card>
 
           {/* Options */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${showFareHold ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
             {/* Continue Without Fare Hold */}
             <Card className="cursor-pointer hover:shadow-md transition-shadow">
               <CardContent className="p-6">
@@ -217,6 +225,7 @@ export default function FlightSelectionModal({
             </Card>
 
             {/* Select Fare Hold */}
+            {showFareHold && (
             <Card className="cursor-pointer hover:shadow-md transition-shadow border-blue-200">
               <CardContent className="p-6">
                 <div className="text-center space-y-4">
@@ -249,6 +258,7 @@ export default function FlightSelectionModal({
                 </div>
               </CardContent>
             </Card>
+            )}
           </div>
 
           {/* Information Banner */}
