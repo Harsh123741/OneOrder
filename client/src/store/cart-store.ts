@@ -420,7 +420,8 @@ export const useCartStore = create<CartState>()(
       },
       
       loadCartFromStorage: async () => {
-        if (isAuthenticated()) {
+        const currentUserId = get().currentUserId;
+        if (isAuthenticated(currentUserId)) {
           // If authenticated, load from database
           await get().syncCart();
         }

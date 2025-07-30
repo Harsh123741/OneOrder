@@ -59,7 +59,7 @@ export default function DynamicPricingDisplay({
 
   // Track price changes
   useEffect(() => {
-    if (pricingData?.currentPrice) {
+    if (pricingData && typeof pricingData === 'object' && pricingData !== null && 'currentPrice' in pricingData && typeof pricingData.currentPrice === 'string') {
       const newPrice = parseFloat(pricingData.currentPrice);
 
       if (lastPrice !== null) {
@@ -74,7 +74,7 @@ export default function DynamicPricingDisplay({
 
       setLastPrice(newPrice);
     }
-  }, [pricingData?.currentPrice, lastPrice]);
+  }, [pricingData, lastPrice]);
 
   if (isLoading) {
     return (
@@ -115,7 +115,8 @@ export default function DynamicPricingDisplay({
     );
   }
 
-  const pricing = pricingData || {
+  // Define a proper fallback pricing object
+  const fallbackPricing = {
     currentPrice: currentPrice?.toString() || "0",
     basePrice: basePrice?.toString() || "0",
     demandMultiplier: "1.000",
@@ -124,8 +125,14 @@ export default function DynamicPricingDisplay({
     inventoryLevel: 100,
   };
 
-  const currentPriceNum = parseFloat(pricing.currentPrice);
-  const basePriceNum = parseFloat(pricing.basePrice);
+  // Use type-safe pricing data or fallback
+  const pricing = (pricingData && typeof pricingData === 'object' && pricingData !== null && 
+    'currentPrice' in pricingData && 'basePrice' in pricingData && 
+    'demandMultiplier' in pricingData && 'inventoryLevel' in pricingData && 
+    'totalBookings' in pricingData) ? pricingData as any : fallbackPricing;
+
+  const currentPriceNum = parseFloat(pricing.currentPrice || "0");
+  const basePriceNum = parseFloat(pricing.basePrice || "0");
   const priceChange = ((currentPriceNum - basePriceNum) / basePriceNum) * 100;
   // Calculate demand level based on actual demand multiplier and inventory
   const demandMultiplier = parseFloat(pricing.demandMultiplier || "1.0");
