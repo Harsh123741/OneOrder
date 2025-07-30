@@ -149,7 +149,7 @@ export default function Cart() {
                             <p className="text-sm text-gray-600">
                               {item.details?.departureAirport && item.details?.arrivalAirport 
                                 ? `${item.details.departureAirport} → ${item.details.arrivalAirport}`
-                                : 'Flight Details'
+                                : item.description
                               }
                             </p>
 
