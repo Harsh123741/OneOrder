@@ -79,19 +79,9 @@ export default function DynamicPricingDisplay({
   if (isLoading) {
     return (
       <Card className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-yellow-500" />
-            Dynamic Pricing
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-3">
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </CardContent>
+        <div className="animate-pulse space-y-3">
+          <div className="h-8 bg-gray-200 rounded">              </div>
+        </div>
       </Card>
     );
   }

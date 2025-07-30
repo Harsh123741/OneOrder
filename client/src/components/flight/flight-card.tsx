@@ -69,9 +69,6 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   <h3 className="font-semibold text-gray-900 text-sm sm:text-lg">
                     {flight.flightNumber}
                   </h3>
-                  <p className="text-xs sm:text-sm text-gray-600">
-                    {flight.airline}
-                  </p>
                 </div>
               </div>
               {/* Desktop price display */}
@@ -84,14 +81,6 @@ export default function FlightCard({ flight, onSelect }: FlightCardProps) {
                   className="text-sm"
                 />
               </div>
-            </div>
-
-            {/* Aircraft Info */}
-            <div className="flex items-center sm:text-sm text-sm gap-10 text-gray-600">
-              <span className=" my-auto flex items-center space-x-1">
-                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span>{flight.aircraft}</span>
-              </span>
             </div>
 
             {/* Route and Times */}
