@@ -13,6 +13,7 @@ export function CartSync() {
   const previousUserIdRef = useRef<number | null>(null);
   const previousItemCountRef = useRef<number>(0);
   const previousFlightCountRef = useRef<number>(0);
+  const hasRedirectedOnLoginRef = useRef<boolean>(false);
 
   useEffect(() => {
     const currentUserId = user?.id || null;
@@ -28,12 +29,16 @@ export function CartSync() {
       // After user is set, sync cart if user is logged in
       if (currentUserId) {
         console.log(`Cart sync: User logged in (ID: ${currentUserId}), syncing cart...`);
+        // Reset redirect flag when user logs in
+        hasRedirectedOnLoginRef.current = false;
         // Add a small delay to ensure the user state and authentication is properly set
         setTimeout(async () => {
           await syncCart();
         }, 500);
       } else {
         console.log('Cart sync: User logged out, cart cleared');
+        // Reset redirect flag when user logs out
+        hasRedirectedOnLoginRef.current = false;
       }
       
       // Update the ref with current user ID
@@ -41,15 +46,16 @@ export function CartSync() {
     }
   }, [user, syncCart, setCurrentUser]);
 
-  // Separate effect to handle redirect after cart items are loaded
+  // Separate effect to handle redirect after cart items are loaded (only on initial login)
   useEffect(() => {
-    // Only check for redirect if user is logged in and we have items
-    if (user?.id && items.length > 0) {
+    // Only check for redirect if user is logged in, we have items, and haven't already redirected
+    if (user?.id && items.length > 0 && !hasRedirectedOnLoginRef.current) {
       const flightItems = items.filter(item => item.type === 'flight');
       console.log('Cart sync: Checking for redirect - Items:', items.length, 'Flights:', flightItems.length, 'Location:', location);
       
       if (flightItems.length > 0 && location !== '/services' && location !== '/checkout' && location !== '/payment') {
         console.log('Cart sync: User has flight in cart, redirecting to services');
+        hasRedirectedOnLoginRef.current = true; // Mark that we've redirected
         setLocation('/services');
       }
     }

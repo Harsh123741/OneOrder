@@ -166,7 +166,7 @@ export default function FlightSelectionModal({
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-semibold text-lg">{flight.airline} {flight.flightNumber}</h3>
+                  <h3 className="font-semibold text-lg">{flight.flightNumber}</h3>
                   <p className="text-gray-600">
                     {flight.departureAirport} → {flight.arrivalAirport}
                   </p>
