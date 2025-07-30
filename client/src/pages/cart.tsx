@@ -107,7 +107,7 @@ export default function Cart() {
               <p className="text-gray-600">{items.length} item{items.length !== 1 ? 's' : ''} in your cart</p>
             </div>
           </div>
-          
+
           {items.length > 0 && (
             <Button
               variant="outline"
@@ -139,13 +139,18 @@ export default function Cart() {
                       <div className="w-10 h-10 bg-airline-blue rounded-lg flex items-center justify-center">
                         <Plane className="h-5 w-5 text-white" />
                       </div>
-                      
+
                       <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                            <p className="text-sm text-gray-600">{item.description}</p>
-                            
+                            <p className="text-sm text-gray-600">
+                              {item.details?.departureAirport && item.details?.arrivalAirport 
+                                ? `${item.details.departureAirport} → ${item.details.arrivalAirport}`
+                                : 'Flight Details'
+                              }
+                            </p>
+
                             {item.details && (
                               <div className="mt-2 text-sm text-gray-600">
                                 <div className="flex items-center space-x-4">
@@ -158,7 +163,7 @@ export default function Cart() {
                                     <span>{item.details.passengerCount} passenger{item.details.passengerCount !== 1 ? 's' : ''}</span>
                                   </span>
                                 </div>
-                                
+
                                 {item.details.fareHold && (
                                   <Badge className="mt-2 bg-green-100 text-green-800">
                                     Fare Protected
@@ -167,7 +172,7 @@ export default function Cart() {
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="text-right">
                             <div className="text-xl font-bold text-gray-900">${item.price.toFixed(2)}</div>
                             <Button
@@ -202,13 +207,13 @@ export default function Cart() {
                       <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                         <Package className="h-5 w-5 text-orange-600" />
                       </div>
-                      
+
                       <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="font-semibold text-gray-900">{item.name}</h3>
                             <p className="text-sm text-gray-600">{item.description}</p>
-                            
+
                             {/* Show loyalty bundle badge */}
                             {item.details?.loyaltyBundle?.isComplimentary && (
                               <div className="mt-2">
@@ -217,7 +222,7 @@ export default function Cart() {
                                 </Badge>
                               </div>
                             )}
-                            
+
                             {/* Show discount badge for non-complimentary bundle discounts */}
                             {item.details?.loyaltyBundle && !item.details.loyaltyBundle.isComplimentary && (
                               <div className="mt-2">
@@ -226,7 +231,7 @@ export default function Cart() {
                                 </Badge>
                               </div>
                             )}
-                            
+
                             {/* Show regular discount for non-bundle items */}
                             {item.details?.discount && parseInt(item.details.discount) > 0 && !item.details?.loyaltyBundle && (
                               <div className="mt-2">
@@ -236,7 +241,7 @@ export default function Cart() {
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="text-right flex items-center space-x-2">
                             {item.details?.loyaltyBundle?.isComplimentary ? (
                               <div className="text-xl font-bold text-green-600">FREE</div>
@@ -275,31 +280,31 @@ export default function Cart() {
                       <span className="font-medium text-gray-500 line-through">${getOriginalSubtotal().toFixed(2)}</span>
                     </div>
                   )}
-                  
+
                   {getDiscountAmount() > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-green-600">Discount Savings</span>
                       <span className="font-medium text-green-600">-${getDiscountAmount().toFixed(2)}</span>
                     </div>
                   )}
-                  
+
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">${getSubtotal().toFixed(2)}</span>
                   </div>
-                  
+
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Taxes & Fees</span>
                     <span className="font-medium">${getTaxes().toFixed(2)}</span>
                   </div>
-                  
+
                   <Separator />
-                  
+
                   <div className="flex justify-between text-lg font-semibold">
                     <span>Total</span>
                     <span className="text-airline-blue">${getTotal().toFixed(2)}</span>
                   </div>
-                  
+
                   {getDiscountAmount() > 0 && (
                     <div className="flex justify-between text-sm text-green-600">
                       <span>You saved</span>
@@ -326,7 +331,7 @@ export default function Cart() {
                       </>
                     )}
                   </Button>
-                  
+
                   <Button
                     variant="outline"
                     onClick={handleBack}
