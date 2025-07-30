@@ -131,6 +131,7 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
                   onChange={(e) => setSearchData({ ...searchData, departureDate: e.target.value })}
                   className="pl-10"
                   min={new Date().toISOString().split('T')[0]}
+                  placeholder="Select date"
                 />
               </div>
             </div>
@@ -148,6 +149,7 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
                   className="pl-10"
                   disabled={searchData.tripType === "one_way"}
                   min={searchData.departureDate || new Date().toISOString().split('T')[0]}
+                  placeholder="Select date"
                 />
               </div>
             </div>
