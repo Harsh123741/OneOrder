@@ -51,7 +51,7 @@ export default function Header() {
           </Link>
 
           {/* Navigation Links */}
-          <div className="md:flex items-center space-x-4 sm:space-x-8">
+          <div className="hidden sm:flex items-center space-x-4 sm:space-x-8">
             {navigation.map((item) => (
               <Link
                 key={item.name}
