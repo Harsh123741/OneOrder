@@ -158,7 +158,7 @@ export default function DynamicPricingDisplay({
 
   return (
     <div className={``}>
-      <CardContent className="p-6 flex flex-col gap-1 pt-[0px] pb-[0px] pl-[13px] pr-[13px]">
+      <CardContent className="p-6 flex flex-col gap-1 pt-[0px] pb-[0px]">
         {/* Demand Indicator */}
         <div className="text-center text-xs">
           {demandLevel > 80 ? (
@@ -180,7 +180,7 @@ export default function DynamicPricingDisplay({
           )}
         </div>
         {/* Current Price Display */}
-        <div className="text-center">
+        <div className="text-end">
           <div className="text-3xl font-bold text-gray-900">
             ${currentPriceNum.toFixed(2)}
           </div>
