@@ -29,7 +29,7 @@ export function useCart() {
     // Priority: fare hold locked price > dynamic pricing > flight price
     let currentPrice = flight.price;
     let isLocked = false;
-    
+
     if (flight.fareHold?.lockedFarePrice) {
       // Use fare hold locked price if available and not expired
       const expiresAt = new Date(flight.fareHold.expiresAt);
@@ -42,7 +42,7 @@ export function useCart() {
       currentPrice = flight.dynamicPricing.currentPrice;
       isLocked = flight.dynamicPricing.isLocked || false;
     }
-    
+
     const flightItem: CartItem = {
       id: `flight-${flight.id}`,
       type: 'flight',
@@ -61,6 +61,10 @@ export function useCart() {
         dynamicPrice: currentPrice,
         isLocked: isLocked,
         fareHold: flight.fareHold || null,
+        dynamicPricing: flight.dynamicPricing,
+        departureAirport: flight.departureAirport,
+        arrivalAirport: flight.arrivalAirport,
+        flightNumber: flight.flightNumber
       },
     };
 

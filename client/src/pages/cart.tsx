@@ -143,7 +143,9 @@ export default function Cart() {
                       <div className="flex-1">
                         <div className="flex items-start justify-between">
                           <div>
-                            <h3 className="font-semibold text-gray-900">{item.name}</h3>
+                            <h3 className="font-semibold text-gray-900">
+                              {item.details?.flightNumber || item.name}
+                            </h3>
                             <p className="text-sm text-gray-600">
                               {item.details?.departureAirport && item.details?.arrivalAirport 
                                 ? `${item.details.departureAirport} → ${item.details.arrivalAirport}`
