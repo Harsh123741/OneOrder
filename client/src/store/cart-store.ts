@@ -12,6 +12,7 @@ interface CartState {
   addItem: (item: CartItem) => Promise<void>;
   removeItem: (id: string, isUserInitiated?: boolean) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
+  updateItemDetails: (id: string, details: Partial<CartItem>) => Promise<void>;
   clearCart: (isCheckoutFlow?: boolean) => Promise<void>;
   syncCart: () => Promise<void>;
   loadCartFromStorage: () => Promise<void>;
@@ -118,6 +119,50 @@ export const useCartStore = create<CartState>()(
                 }
               } catch (pricingError) {
                 console.warn('Failed to get latest service pricing:', pricingError);
+              }
+            }
+
+            // For flights, get latest pricing before adding to cart
+            if (item.type === 'flight' && item.flightId) {
+              try {
+                const flightResponse = await apiRequest('GET', `/api/flights/${item.flightId}`);
+                const flightData = await flightResponse.json();
+                
+                if (flightData.dynamicPricing) {
+                  // Update item and cartItemData with latest dynamic pricing
+                  const currentPrice = flightData.dynamicPricing.currentPrice.toString();
+                  item.price = parseFloat(currentPrice);
+                  cartItemData.price = currentPrice;
+                  cartItemData.details = {
+                    ...cartItemData.details,
+                    dynamicPricing: flightData.dynamicPricing,
+                    departureTime: flightData.departureTime,
+                    arrivalTime: flightData.arrivalTime,
+                    duration: flightData.duration,
+                    aircraft: flightData.aircraft,
+                    departureAirport: flightData.departureAirport,
+                    arrivalAirport: flightData.arrivalAirport
+                  };
+                  item.details = {
+                    ...item.details,
+                    dynamicPricing: flightData.dynamicPricing,
+                    departureTime: flightData.departureTime,
+                    arrivalTime: flightData.arrivalTime,
+                    duration: flightData.duration,
+                    aircraft: flightData.aircraft,
+                    departureAirport: flightData.departureAirport,
+                    arrivalAirport: flightData.arrivalAirport
+                  };
+                  
+                  console.log('Cart add: Updated flight with dynamic pricing:', {
+                    oldPrice: cartItemData.price,
+                    newPrice: currentPrice,
+                    isLocked: flightData.dynamicPricing.isLocked,
+                    fareHold: flightData.dynamicPricing.userFareHold
+                  });
+                }
+              } catch (pricingError) {
+                console.warn('Failed to get latest flight pricing:', pricingError);
               }
             }
             
@@ -236,6 +281,38 @@ export const useCartStore = create<CartState>()(
               item.id === id ? { ...item, quantity } : item
             ),
           }));
+        } finally {
+          set({ isLoading: false });
+        }
+      },
+      
+      updateItemDetails: async (id, details) => {
+        try {
+          set({ isLoading: true });
+          const currentUserId = get().currentUserId;
+          
+          // Update local state first
+          set((state) => ({
+            items: state.items.map(item =>
+              item.id === id ? { ...item, ...details } : item
+            ),
+          }));
+          
+          // Update database if authenticated
+          if (currentUserId && isAuthenticated(currentUserId)) {
+            const currentItems = get().items;
+            const item = currentItems.find(i => i.id === id);
+            
+            if (item && item.databaseId) {
+              const updateData = {
+                price: details.price?.toString() || item.price.toString(),
+                details: details.details ? { ...item.details, ...details.details } : item.details,
+              };
+              await apiRequest('PUT', `/api/cart/${item.databaseId}`, updateData);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to update item details:', error);
         } finally {
           set({ isLoading: false });
         }

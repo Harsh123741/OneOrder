@@ -40,7 +40,7 @@ const loyaltyTiersSeed: InsertLoyaltyTier[] = [
   },
   {
     tierName: "gold",
-    displayName: "Gold Premier",
+    displayName: "Gold Tier",
     minPoints: 50000,
     minMiles: 50000,
     minSpend: "6000.00",
@@ -102,6 +102,38 @@ const loyaltyTiersSeed: InsertLoyaltyTier[] = [
 
 // Seed loyalty bundles with tier-specific discounts and complimentary services
 const loyaltyBundlesSeed: InsertLoyaltyBundle[] = [
+  // Bronze Tier Bundles
+  {
+    tierName: "bronze",
+    bundleName: "Bronze Welcome Package",
+    description: "Complimentary meal selection for Bronze members",
+    serviceIds: [5], // Meal Pre-booking
+    discountPercentage: "100.00",
+    isComplimentary: true,
+    phase: "booking",
+    isActive: true
+  },
+  {
+    tierName: "bronze",
+    bundleName: "Bronze Basic Discount",
+    description: "5% discount on travel insurance and priority boarding",
+    serviceIds: [6, 8], // Travel Insurance, Priority Boarding
+    discountPercentage: "5.00",
+    isComplimentary: false,
+    phase: "booking",
+    isActive: true
+  },
+  {
+    tierName: "bronze",
+    bundleName: "Bronze Baggage Deal",
+    description: "10% discount on extra baggage for Bronze members",
+    serviceIds: [9], // Extra Baggage
+    discountPercentage: "10.00",
+    isComplimentary: false,
+    phase: "booking",
+    isActive: true
+  },
+
   // Silver Tier Bundles
   {
     tierName: "silver",

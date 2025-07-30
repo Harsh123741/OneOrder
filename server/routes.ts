@@ -25,7 +25,7 @@ function authenticateToken(req: any, res: any, next: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
   // Create draft order endpoint for checkout
   app.post("/api/orders/create-draft", authenticateToken, async (req: any, res) => {
     try {
@@ -34,20 +34,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       orderData.status = "pending_payment";
       orderData.paymentStatus = "pending";
       orderData.canCheckIn = false;
-      
+
+      // Set 15-minute payment expiration window
+      const paymentExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+      orderData.paymentExpiresAt = paymentExpiresAt;
+
       // Generate order number
       const orderNumber = 'SL' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
       orderData.orderNumber = orderNumber;
-      
+
+      // Reserve inventory (seats and services)
+      const reservedInventory = {
+        seats: [],
+        services: []
+      };
+
+      // Reserve seats if any are selected
+      if (orderData.assignedSeats && Array.isArray(orderData.assignedSeats)) {
+        for (const seatAssignment of orderData.assignedSeats) {
+          if (seatAssignment.seatId) {
+            reservedInventory.seats.push({
+              seatId: seatAssignment.seatId,
+              passengerId: seatAssignment.passengerId,
+              reservedAt: new Date()
+            });
+            // Mark seat as temporarily unavailable
+            await storage.updateSeatAvailability(seatAssignment.seatId, false);
+          }
+        }
+      }
+
+      // Reserve services
+      if (orderData.selectedServices && Array.isArray(orderData.selectedServices)) {
+        for (const service of orderData.selectedServices) {
+          const quantity = service.quantity || 1;
+          reservedInventory.services.push({
+            serviceId: service.id,
+            quantity: quantity,
+            reservedAt: new Date()
+          });
+          // Temporarily reduce service inventory
+          await storage.reserveServiceInventory(service.id, quantity);
+        }
+      }
+
+      orderData.reservedInventory = reservedInventory;
+
       // Handle passenger-specific services from cart
       if (orderData.items && Array.isArray(orderData.items)) {
         const serviceItems = orderData.items.filter((item: any) => item.type === 'service');
         const passengerInfo = orderData.passengerInfo || [];
-        
+
         // Group services by passenger
         const servicesByPassenger: { [key: number]: any[] } = {};
         const generalServices: any[] = [];
-        
+
         serviceItems.forEach((item: any) => {
           if (item.passengerId !== undefined && item.passengerId !== null) {
             if (!servicesByPassenger[item.passengerId]) {
@@ -72,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         });
-        
+
         // Attribute services to specific passengers
         if (Array.isArray(passengerInfo)) {
           passengerInfo.forEach((passenger: any, index: number) => {
@@ -81,27 +122,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
         }
-        
+
         // Store general services in selectedServices for backward compatibility
         orderData.selectedServices = generalServices;
         orderData.passengerInfo = passengerInfo;
       }
-      
+
       // Process loyalty bundles if provided
       if (orderData.loyaltyTier && orderData.selectedLoyaltyBundles) {
         const bundles = await storage.getLoyaltyBundles(orderData.loyaltyTier, 'booking');
         const selectedBundles = bundles.filter(bundle => 
           orderData.selectedLoyaltyBundles.includes(bundle.id)
         );
-        
+
         // Apply loyalty bundle information to order
         orderData.loyaltyTierAtBooking = orderData.loyaltyTier;
         orderData.loyaltyBundles = selectedBundles.map(bundle => bundle.id);
-        
+
         // Separate complimentary and discounted services
         const complimentaryServices: any[] = [];
         const tierDiscounts: any[] = [];
-        
+
         selectedBundles.forEach(bundle => {
           if (bundle.isComplimentary) {
             complimentaryServices.push({
@@ -120,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           }
         });
-        
+
         orderData.complimentaryServices = complimentaryServices;
         orderData.tierDiscounts = tierDiscounts;
       }
@@ -129,47 +170,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const total = parseFloat(orderData.total);
       const subtotal = parseFloat((total / 1.12).toFixed(2));
       const taxes = parseFloat((total - subtotal).toFixed(2));
-      
+
       orderData.subtotal = subtotal;
       orderData.taxes = taxes;
       orderData.total = total;
-      
+
       const order = await storage.createOrder(orderData);
-      res.json(order);
-    } catch (error: any) {
-      console.error("Error creating draft order:", error);
-      res.status(500).json({ error, message: error.message });
-    }
-  });
 
-  // Payment processing endpoint for completing orders
-  app.post("/api/orders/:orderNumber/complete-payment", authenticateToken, async (req: any, res) => {
-    try {
-      const { orderNumber } = req.params;
-      const { paymentMethod, paymentDetails } = req.body;
-      
-      const order = await storage.getOrderByNumber(orderNumber);
-      if (!order) {
-        return res.status(404).json({ error: "Order not found" });
-      }
+      // Clear the user's cart after creating the order
+      await storage.clearUserCart(req.user.userId);
 
-      // Update loyalty stats when payment is completed
-      if (order.userId && order.flightId) {
-        const flight = await storage.getFlight(order.flightId);
-        if (flight) {
-          await storage.updateUserLoyaltyStats(order.userId, order, flight);
-        }
-      }
-
-      // Record booking with dynamic pricing service and update flight inventory
+      // Record booking with dynamic pricing service at ORDER CREATION (when inventory is reserved)
       if (order.flightId) {
         try {
           // Calculate passenger count for flight booking
           const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
-          
+
           // Record flight booking (affects pricing and inventory)
           await dynamicPricingService.recordBooking('flight', order.flightId, passengerCount);
-          
+
           // Record service bookings if any
           if (order.selectedServices && Array.isArray(order.selectedServices)) {
             for (const service of order.selectedServices) {
@@ -178,7 +197,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
-          
+
           // Record passenger-specific service bookings
           if (Array.isArray(order.passengerInfo)) {
             for (const passenger of order.passengerInfo) {
@@ -191,26 +210,265 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
-          
-          console.log(`Dynamic pricing updated for flight ${order.flightId} with ${passengerCount} passengers`);
+
+          console.log(`Dynamic pricing updated at ORDER CREATION for flight ${order.flightId} with ${passengerCount} passengers`);
         } catch (pricingError) {
-          console.error("Error updating dynamic pricing:", pricingError);
+          console.error("Error updating dynamic pricing during order creation:", pricingError);
           // Don't fail the order if pricing update fails
         }
       }
 
-      // Update order status to confirmed
-      const updatedOrder = await storage.updateOrder(order.id, {
-        status: "confirmed",
-        paymentStatus: "paid",
-        canCheckIn: true,
-        paymentMethod: paymentMethod,
-        paymentDetails: paymentDetails,
+      // Set up automatic expiration check
+      setTimeout(async () => {
+        try {
+          await checkAndExpireOrder(order.orderNumber);
+        } catch (error) {
+          console.error('Error checking order expiration:', error);
+        }
+      }, 61 * 1000); // Check 1 second after expiration
+
+      res.json(order);
+    } catch (error: any) {
+      console.error("Error creating draft order:", error);
+      res.status(500).json({ error, message: error.message });
+    }
+  });
+
+  // Helper function to check and expire orders
+  async function checkAndExpireOrder(orderNumber: string) {
+    try {
+      const order = await storage.getOrderByNumber(orderNumber);
+      if (order && order.status === 'pending_payment' && order.paymentExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(order.paymentExpiresAt);
+
+        if (now > expiresAt) {
+          // Order has expired, update status and restore inventory
+          await storage.updateOrderStatus(order.id, 'order_expired', 'failed');
+
+          // Restore reserved inventory
+          if (order.reservedInventory) {
+            const reserved = order.reservedInventory as any;
+
+            // Restore seat availability
+            if (reserved.seats && Array.isArray(reserved.seats)) {
+              for (const seat of reserved.seats) {
+                await storage.updateSeatAvailability(seat.seatId, true);
+              }
+            }
+
+            // Restore service inventory
+            if (reserved.services && Array.isArray(reserved.services)) {
+              for (const service of reserved.services) {
+                await storage.restoreServiceInventory(service.serviceId, service.quantity);
+              }
+            }
+          }
+
+          // Reverse dynamic pricing changes when order expires
+          if (order.flightId) {
+            try {
+              // Calculate passenger count for reversal
+              const passengerCount = Array.isArray(order.passengerInfo) ? order.passengerInfo.length : 1;
+
+              // Reverse flight pricing impact (simulate reduced demand)
+              await dynamicPricingService.reverseBooking('flight', order.flightId, passengerCount);
+
+              // Reverse service pricing impacts if any
+              if (order.selectedServices && Array.isArray(order.selectedServices)) {
+                for (const service of order.selectedServices) {
+                  if (service.id) {
+                    await dynamicPricingService.reverseBooking('service', service.id, service.quantity || 1);
+                  }
+                }
+              }
+
+              // Reverse passenger-specific service pricing impacts
+              if (Array.isArray(order.passengerInfo)) {
+                for (const passenger of order.passengerInfo) {
+                  if (passenger.services && Array.isArray(passenger.services)) {
+                    for (const service of passenger.services) {
+                      if (service.id) {
+                        await dynamicPricingService.reverseBooking('service', service.id, service.quantity || 1);
+                      }
+                    }
+                  }
+                }
+              }
+
+              console.log(`Dynamic pricing reversed for expired order ${orderNumber}`);
+            } catch (pricingError) {
+              console.error("Error reversing dynamic pricing for expired order:", pricingError);
+              // Don't fail the expiration if pricing reversal fails
+            }
+          }
+
+          console.log(`Order ${orderNumber} expired and inventory restored`);
+        }
+      }
+    } catch (error) {
+      console.error('Error expiring order:', orderNumber, error);
+    }
+  }
+
+  // Endpoint to check order payment status
+  app.get("/api/orders/:orderNumber/payment-status", authenticateToken, async (req: any, res) => {
+    try {
+      const { orderNumber } = req.params;
+      const order = await storage.getOrderByNumber(orderNumber);
+
+      if (!order) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+
+      if (order.userId !== req.user.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Check if order has expired
+      if (order.status === 'pending_payment' && order.paymentExpiresAt) {
+        const now = new Date();
+        const expiresAt = new Date(order.paymentExpiresAt);
+
+        if (now > expiresAt) {
+          // Expire the order if not already expired
+          await checkAndExpireOrder(orderNumber);
+          // Fetch updated order
+          const updatedOrder = await storage.getOrderByNumber(orderNumber);
+          return res.json({
+            status: updatedOrder?.status || 'order_expired',
+            paymentStatus: updatedOrder?.paymentStatus || 'failed',
+            expiresAt: order.paymentExpiresAt,
+            isExpired: true
+          });
+        }
+      }
+
+      res.json({
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        expiresAt: order.paymentExpiresAt,
+        isExpired: false,
+        timeRemaining: order.paymentExpiresAt ? Math.max(0, new Date(order.paymentExpiresAt).getTime() - Date.now()) : 0
       });
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+      res.status(500).json({ message: 'Failed to check payment status' });
+    }
+  });
+
+  // Payment processing endpoint for completing orders
+  app.post("/api/orders/:orderNumber/complete-payment", authenticateToken, async (req: any, res) => {
+    try {
+      const { orderNumber } = req.params;
+      const { paymentMethod, paymentDetails } = req.body;
+
+      const order = await storage.getOrderByNumber(orderNumber);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Ensure user owns the order
+      if (order.userId !== req.user.userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      // Check if order is in pending payment status
+      if ((order.status !== "pending" && order.status !== "pending_payment") || order.paymentStatus !== "pending") {
+        return res.status(400).json({ error: "Order is not pending payment" });
+      }
+
+      // Check if payment window is still valid (15 minutes from order expiration)
+      if (order.paymentExpiresAt) {
+        const currentTime = new Date();
+        const expiresAt = new Date(order.paymentExpiresAt);
+
+        if (currentTime > expiresAt) {
+          // Mark the order as expired
+          await storage.updateOrder(order.id, { 
+            status: "order_expired", 
+            paymentStatus: "expired" 
+          });
+          return res.status(400).json({ 
+            error: "Payment window expired", 
+            message: "This order has expired. Payment must be completed within 15 minutes of order creation. Please create a new booking."
+          });
+        }
+      }
+
+      // Validate wallet balance if using wallet payment
+      if (paymentMethod === "wallet") {
+        const user = await storage.getUser(req.user.userId);
+        if (!user || parseFloat(user.walletBalance || "0") < parseFloat(order.total)) {
+          return res.status(400).json({ error: "Insufficient wallet balance" });
+        }
+
+        // Deduct from wallet
+        await storage.addWalletTransaction(
+          req.user.userId, 
+          parseFloat(order.total), 
+          'debit', 
+          `Payment for order ${order.orderNumber}`
+        );
+      }
+
+      // Complete payment and reserve seats/services using new method
+      const updatedOrder = await storage.completeOrderPayment(order.id, {
+        paymentMethod,
+        paymentDetails
+      });
+
+      if (!updatedOrder) {
+        return res.status(500).json({ error: "Failed to complete payment and reserve seats" });
+      }
+
+      // Update loyalty stats when payment is completed
+      if (order.userId && order.flightId) {
+        const flight = await storage.getFlight(order.flightId);
+        if (flight) {
+          await storage.updateUserLoyaltyStats(order.userId, order, flight);
+        }
+      }
+
+      // NOTE: Dynamic pricing is NOT updated here anymore.
+      // Pricing updates happen at ORDER CREATION when inventory is reserved,
+      // not at payment completion.
 
       res.json(updatedOrder);
     } catch (error: any) {
       console.error("Error completing payment:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Check and update expired orders endpoint
+  app.post("/api/orders/check-expired", authenticateToken, async (req: any, res) => {
+    try {
+      const userOrders = await storage.getUserOrders(req.user.userId);
+      const currentTime = new Date();
+      let updatedCount = 0;
+
+      for (const order of userOrders) {
+        if ((order.status === "pending" || order.status === "pending_payment") && order.paymentStatus === "pending") {
+          const orderCreatedAt = new Date(order.createdAt);
+          const timeDifferenceInMinutes = (currentTime.getTime() - orderCreatedAt.getTime()) / (1000 * 60);
+
+          if (timeDifferenceInMinutes > 15) {
+            await storage.updateOrder(order.id, { 
+              status: "order_expired", 
+              paymentStatus: "expired" 
+            });
+            updatedCount++;
+          }
+        }
+      }
+
+      res.json({ 
+        message: `${updatedCount} orders updated to expired status`,
+        updatedCount 
+      });
+    } catch (error: any) {
+      console.error("Error checking expired orders:", error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -220,16 +478,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderNumber } = req.params;
       const order = await storage.getOrderByNumber(orderNumber);
-      
+
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       // Only allow user to view their own orders
       if (order.userId !== req.user.userId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
+      // Fetch flight details if flightId exists
+      if (order.flightId) {
+        const flight = await storage.getFlight(order.flightId);
+        if (flight) {
+          order.flightDetails = {
+            airline: flight.airline,
+            flightNumber: flight.flightNumber,
+            departureAirport: flight.departureAirport,
+            arrivalAirport: flight.arrivalAirport,
+            departureTime: flight.departureTime,
+            arrivalTime: flight.arrivalTime,
+            duration: flight.duration,
+            aircraft: flight.aircraft,
+            class: 'economy' // Default class, could be stored in order if needed
+          };
+        }
+      }
+
       res.json(order);
     } catch (error: any) {
       console.error("Error fetching order:", error);
@@ -241,7 +517,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders/payment/services", authenticateToken, async (req: any, res) => {
     try {
       const { orderNumber, services, paymentMethod } = req.body;
-      
+
       // Process service modification payment
       const order = await storage.getOrderByNumber(orderNumber);
       if (!order) {
@@ -250,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Calculate total for new services
       const total = services.reduce((sum: number, service: any) => sum + parseFloat(service.price), 0);
-      
+
       // Add services to order
       for (const service of services) {
         await storage.addServiceToOrder(order.id, service);
@@ -266,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
@@ -275,7 +551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await storage.createUser(userData);
       const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET);
-      
+
       const { password, ...userResponse } = user;
       res.json({ user: userResponse, token });
     } catch (error) {
@@ -286,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
-      
+
       const user = await storage.getUserByEmail(email);
       if (!user) {
         return res.status(401).json({ message: "Invalid email or password" });
@@ -299,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET);
       const { password: _, ...userResponse } = user;
-      
+
       res.json({ user: userResponse, token });
     } catch (error) {
       res.status(400).json({ message: "Invalid login data", error });
@@ -312,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       const { password, ...userResponse } = user;
       res.json(userResponse);
     } catch (error) {
@@ -324,14 +600,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/flights/search", async (req, res) => {
     try {
       console.log("Flight search request body:", req.body);
-      
+
       // Simple validation without schema for now
       const { from, to, departureDate, passengers = 1, class: flightClass = "economy", tripType = "one_way" } = req.body;
-      
+
       if (!from || !to || !departureDate) {
         return res.status(400).json({ message: "Missing required fields: from, to, departureDate" });
       }
-      
+
       const searchCriteria = {
         from,
         to,
@@ -340,10 +616,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         class: flightClass,
         tripType
       };
-      
+
       console.log("Search criteria:", searchCriteria);
       const flights = await storage.searchFlights(searchCriteria);
-      
+
       // Get userId if authenticated
       let userId = null;
       try {
@@ -355,14 +631,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (e) {
         // Not authenticated, continue with dynamic pricing
       }
-      
+
       // Integrate dynamic pricing for each flight
       const flightsWithDynamicPricing = await Promise.all(
         flights.map(async (flight) => {
           try {
             // Initialize pricing if it doesn't exist
             await dynamicPricingService.initializeFlightPricing(flight.id, parseFloat(flight.price));
-            
+
             // Check for active fare hold if user is authenticated
             let fareHoldPrice = null;
             let fareHold = [];
@@ -372,10 +648,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 fareHoldPrice = fareHold[0].lockedFarePrice;
               }
             }
-            
+
             // Get current dynamic price
             const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
-            
+
             if (currentPricing) {
               return {
                 ...flight,
@@ -394,7 +670,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               };
             }
-            
+
             return flight;
           } catch (pricingError) {
             console.error(`Dynamic pricing error for flight ${flight.id}:`, pricingError);
@@ -402,7 +678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })
       );
-      
+
       res.json(flightsWithDynamicPricing);
     } catch (error: any) {
       console.error("Flight search error:", error);
@@ -410,45 +686,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get flight by ID
   app.get("/api/flights/:id", async (req, res) => {
     try {
       const flightId = parseInt(req.params.id);
       const flight = await storage.getFlight(flightId);
-      
+
       if (!flight) {
         return res.status(404).json({ message: "Flight not found" });
       }
-      
-      try {
-        // Initialize pricing if it doesn't exist
-        await dynamicPricingService.initializeFlightPricing(flight.id, parseFloat(flight.price));
-        
-        // Get current dynamic price
-        const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
-        
-        if (currentPricing) {
-          const flightWithDynamicPricing = {
-            ...flight,
-            originalPrice: flight.price,
-            price: currentPricing.currentPrice,
-            dynamicPricing: {
-              basePrice: currentPricing.basePrice,
-              currentPrice: currentPricing.currentPrice,
-              demandMultiplier: currentPricing.demandMultiplier,
-              timeMultiplier: currentPricing.timeMultiplier,
-              totalBookings: currentPricing.totalBookings,
-              inventoryLevel: currentPricing.inventoryLevel,
-              lastUpdated: currentPricing.lastUpdated
-            }
-          };
-          return res.json(flightWithDynamicPricing);
+
+      // Get user ID if authenticated for fare hold check
+      const token = req.headers.authorization?.split(' ')[1];
+      let userId = null;
+      if (token) {
+        try {
+          const decoded = jwt.verify(token, JWT_SECRET) as any;
+          userId = decoded.userId;
+        } catch (error) {
+          // Token invalid or expired, continue without user ID
         }
-      } catch (pricingError) {
-        console.error(`Dynamic pricing error for flight ${flight.id}:`, pricingError);
       }
-      
-      res.json(flight);
+
+      // Check for active fare hold if user is authenticated
+      let fareHoldPrice = null;
+      let fareHold = [];
+      if (userId) {
+        fareHold = await dynamicPricingService.getUserFareHold(userId, flight.id);
+        if (fareHold.length > 0) {
+          fareHoldPrice = fareHold[0].lockedFarePrice;
+        }
+      }
+
+      // Get current dynamic price
+      const currentPricing = await dynamicPricingService.getCurrentPrice('flight', flight.id);
+
+      if (currentPricing) {
+        res.json({
+          ...flight,
+          originalPrice: flight.price,
+          price: fareHoldPrice || currentPricing.currentPrice, // Use locked price if available
+          dynamicPricing: {
+            basePrice: currentPricing.basePrice,
+            currentPrice: currentPricing.currentPrice,
+            demandMultiplier: currentPricing.demandMultiplier,
+            timeMultiplier: currentPricing.timeMultiplier,
+            totalBookings: currentPricing.totalBookings,
+            inventoryLevel: currentPricing.inventoryLevel,
+            lastUpdated: currentPricing.lastUpdated,
+            isLocked: !!fareHoldPrice,
+            userFareHold: fareHold.length > 0 ? fareHold[0] : null
+          }
+        });
+      } else {
+        res.json(flight);
+      }
     } catch (error) {
+      console.error("Error fetching flight:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -463,31 +757,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Service routes
+  // Service routes with real-time dynamic pricing
   app.get("/api/services", async (req, res) => {
     try {
       const phase = req.query.phase as string;
       const services = await storage.getServices(phase);
-      
-      // Add dynamic pricing to services
+
+      // Add dynamic pricing to services with real-time updates
       const servicesWithPricing = await Promise.all(
         services.map(async (service) => {
           try {
             // Initialize service pricing if not exists
             await dynamicPricingService.initializeServicePricing(service.id, parseFloat(service.price));
-            
+
+            // Update pricing to get latest market rates
+            await dynamicPricingService.updateServicePricing(service.id);
+
             // Get current pricing
             const pricing = await dynamicPricingService.getServicePrice(service.id);
-            
+
             if (pricing) {
               const basePrice = parseFloat(pricing.basePrice);
               const currentPrice = parseFloat(pricing.currentPrice);
               const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
-              
+
               return {
                 ...service,
                 basePrice: basePrice.toFixed(2),
-                price: currentPrice.toFixed(2),
+                price: currentPrice.toFixed(2), // Use dynamic pricing as the displayed price
                 dynamicPricing: {
                   basePrice,
                   currentPrice,
@@ -499,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               };
             }
-            
+
             return service;
           } catch (pricingError) {
             console.error(`Service pricing error for service ${service.id}:`, pricingError);
@@ -507,7 +804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         })
       );
-      
+
       res.json(servicesWithPricing);
     } catch (error) {
       console.error("Error fetching services:", error);
@@ -515,25 +812,189 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get personalized service recommendations
+  app.get("/api/services/recommendations", authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user.userId;
+      const { flightId, departureTime } = req.query;
+
+      // Get user's order history
+      const userOrders = await storage.getUserOrders(userId);
+
+      // Analyze service frequency from order history
+      const serviceFrequency: {[key: string]: number} = {};
+
+      userOrders.forEach((order: any) => {
+        // Count services from selectedServices array
+        if (order.selectedServices && Array.isArray(order.selectedServices)) {
+          order.selectedServices.forEach((service: any) => {
+            if (service.name) {
+              serviceFrequency[service.name] = (serviceFrequency[service.name] || 0) + 1;
+            }
+          });
+        }
+
+        // Count services from passenger-specific services
+        if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+          order.passengerInfo.forEach((passenger: any) => {
+            if (passenger.services && Array.isArray(passenger.services)) {
+              passenger.services.forEach((service: any) => {
+                if (service.name) {
+                  serviceFrequency[service.name] = (serviceFrequency[service.name] || 0) + 1;
+                }
+              });
+            }
+          });
+        }
+      });
+
+      // Get all available services for booking phase
+      const allServices = await storage.getServices('booking');
+
+      // Generate context-based recommendations
+      const contextRecommendations = [];
+      const flightTime = departureTime ? new Date(departureTime) : new Date();
+      const flightHour = flightTime.getHours();
+
+      // Time-based recommendations
+      if (flightHour < 6 || flightHour > 22) {
+        // Early morning or late night flights
+        contextRecommendations.push(
+          'Lounge Access',
+          'Fast Track Security', 
+          'Priority Boarding'
+        );
+      } else if (flightHour >= 6 && flightHour < 10) {
+        // Morning flights
+        contextRecommendations.push(
+          'Priority Boarding',
+          'Fast Track Security',
+          'Meal Pre-booking'
+        );
+      } else if (flightHour >= 18 && flightHour <= 22) {
+        // Evening flights
+        contextRecommendations.push(
+          'Lounge Access',
+          'Priority Boarding',
+          'Travel Insurance'
+        );
+      }
+
+      // Always recommend commonly useful services
+      contextRecommendations.push(
+        'Extra Baggage',
+        'Travel Insurance',
+        'Priority Boarding'
+      );
+
+      // Combine frequency-based and context-based recommendations
+      const frequentServices = Object.entries(serviceFrequency)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([name]) => name);
+
+      const recommendedServiceNames = [
+        ...new Set([...frequentServices, ...contextRecommendations])
+      ].slice(0, 6);
+
+      // Get the actual service objects with dynamic pricing
+      const recommendedServices = await Promise.all(
+        allServices
+          .filter(service => 
+            recommendedServiceNames.some(name => 
+              service.name.toLowerCase().includes(name.toLowerCase()) ||
+              name.toLowerCase().includes(service.name.toLowerCase())
+            )
+          )
+          .map(async (service) => {
+            try {
+              // Initialize and get dynamic pricing
+              await dynamicPricingService.initializeServicePricing(service.id, parseFloat(service.price));
+              await dynamicPricingService.updateServicePricing(service.id);
+              const pricing = await dynamicPricingService.getServicePrice(service.id);
+
+              if (pricing) {
+                const basePrice = parseFloat(pricing.basePrice);
+                const currentPrice = parseFloat(pricing.currentPrice);
+                const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
+
+                return {
+                  ...service,
+                  basePrice: basePrice.toFixed(2),
+                  price: currentPrice.toFixed(2),
+                  dynamicPricing: {
+                    basePrice,
+                    currentPrice,
+                    demandMultiplier: parseFloat(pricing.demandMultiplier || "1.0"),
+                    inventoryLevel: pricing.inventoryLevel || 100,
+                    totalBookings: pricing.totalBookings || 0,
+                    lastUpdated: pricing.lastUpdated,
+                    pricingTag
+                  }
+                };
+              }
+              return service;
+            } catch (error) {
+              return service;
+            }
+          })
+      );
+
+      // Add recommendation reasons
+      const servicesWithReasons = recommendedServices.map(service => {
+        let reason = 'Popular choice';
+        const frequency = serviceFrequency[service.name] || 0;
+
+        if (frequency > 0) {
+          reason = `You've selected this ${frequency} time${frequency > 1 ? 's' : ''} before`;
+        } else if (contextRecommendations.includes(service.name)) {
+          if (flightHour < 6 || flightHour > 22) {
+            reason = 'Perfect for early/late flights';
+          } else if (flightHour >= 6 && flightHour < 10) {
+            reason = 'Great for morning departures';
+          } else if (flightHour >= 18 && flightHour <= 22) {
+            reason = 'Ideal for evening flights';
+          }
+        }
+
+        return {
+          ...service,
+          recommendationReason: reason,
+          userFrequency: frequency
+        };
+      });
+
+      res.json({
+        recommendedServices: servicesWithReasons,
+        userOrderCount: userOrders.length,
+        topServices: frequentServices
+      });
+
+    } catch (error: any) {
+      console.error("Error generating service recommendations:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/services/:id", async (req, res) => {
     try {
       const serviceId = parseInt(req.params.id);
       const service = await storage.getService(serviceId);
-      
+
       if (!service) {
         return res.status(404).json({ message: "Service not found" });
       }
-      
+
       try {
         // Get dynamic pricing for individual service
         await dynamicPricingService.initializeServicePricing(serviceId, parseFloat(service.price));
         const pricing = await dynamicPricingService.getServicePrice(serviceId);
-        
+
         if (pricing) {
           const basePrice = parseFloat(pricing.basePrice);
           const currentPrice = parseFloat(pricing.currentPrice);
           const pricingTag = dynamicPricingService.getServicePricingTag(pricing);
-          
+
           const serviceWithPricing = {
             ...service,
             basePrice: basePrice.toFixed(2),
@@ -548,13 +1009,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               pricingTag
             }
           };
-          
+
           return res.json(serviceWithPricing);
         }
       } catch (pricingError) {
         console.error(`Service pricing error for service ${serviceId}:`, pricingError);
       }
-      
+
       res.json(service);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -565,13 +1026,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/orders", authenticateToken, async (req: any, res) => {
     try {
       const { passengers, selectedServices, ...orderData } = req.body;
-      
+
       // Generate order number
       const orderNumber = 'SL' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-      
+
       // Ensure passengers is properly formatted as array
       const passengerArray = Array.isArray(passengers) ? passengers : (passengers ? [passengers] : []);
-      
+
       let finalOrderData = {
         ...orderData,
         userId: req.user.userId,
@@ -586,7 +1047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (flight) {
           const passengerCount = Math.max(1, passengerArray.length);
           let basePrice = parseFloat(flight.price) * passengerCount; // Flight cost × passengers
-          
+
           // Add seat prices if selected
           if (finalOrderData.seatIds && Array.isArray(finalOrderData.seatIds)) {
             for (const seatId of finalOrderData.seatIds) {
@@ -598,7 +1059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
           }
-          
+
           // Add services price
           let servicesPrice = 0;
           if (selectedServices && Array.isArray(selectedServices)) {
@@ -606,21 +1067,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return sum + (parseFloat(service.price) * (service.quantity || 1));
             }, 0);
           }
-          
+
           // Calculate totals
           const subtotal = basePrice + servicesPrice;
           const taxes = subtotal * 0.12;
           const total = subtotal + taxes;
-          
+
           // Update order data with correct pricing
           finalOrderData.subtotal = subtotal.toFixed(2);
           finalOrderData.taxes = taxes.toFixed(2);
           finalOrderData.total = total.toFixed(2);
         }
       }
-      
+
       const order = await storage.createOrder(finalOrderData);
-      
+
       // Update seat availability if seats are selected
       if (finalOrderData.seatIds && Array.isArray(finalOrderData.seatIds)) {
         for (const seatId of finalOrderData.seatIds) {
@@ -629,7 +1090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      
+
       // Create booking history entries for services
       if (selectedServices && Array.isArray(selectedServices)) {
         for (const service of selectedServices) {
@@ -640,7 +1101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
-      
+
       console.log(`Order ${orderNumber} created with ${passengerArray.length} passenger(s)`);
       res.json(order);
     } catch (error: any) {
@@ -654,34 +1115,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderNumber } = req.params;
       const { services, paymentMethod = 'online_booking' } = req.body;
-      
+
       if (!services || !Array.isArray(services) || services.length === 0) {
         return res.status(400).json({ message: "Services are required" });
       }
-      
+
       const order = await storage.getOrderByNumber(orderNumber);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Ensure user owns the order
       if (order.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       // Calculate additional service costs
       let additionalServicesPrice = 0;
       const validatedServices = [];
-      
+
       for (const service of services) {
         const serviceData = await storage.getService(service.id);
         if (!serviceData || !serviceData.isActive) {
           return res.status(400).json({ message: `Service ${service.id} not found or inactive` });
         }
-        
+
         const quantity = service.quantity || 1;
         additionalServicesPrice += parseFloat(serviceData.price) * quantity;
-        
+
         validatedServices.push({
           id: serviceData.id,
           name: serviceData.name,
@@ -689,7 +1150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           quantity: quantity,
           passengerId: service.passengerId // Preserve passenger ID
         });
-        
+
         // Create booking history entry
         await storage.createBookingHistory({
           userId: req.user.userId,
@@ -697,11 +1158,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderId: order.id,
         });
       }
-      
+
       // Calculate total cost with taxes
       const taxAmount = additionalServicesPrice * 0.12;
       const totalCost = additionalServicesPrice + taxAmount;
-      
+
       // Validate payment method
       const validPaymentMethods = ['online_booking', 'bank_transfer', 'upi', 'credit_card', 'debit_card'];
       if (!validPaymentMethods.includes(paymentMethod)) {
@@ -726,7 +1187,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle multi-passenger orders
       if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
         const passengers = order.passengerInfo as any[];
-        
+
         // Add services to specific passengers
         for (const [passengerIndex, passengerServices] of Object.entries(servicesByPassenger)) {
           const index = parseInt(passengerIndex);
@@ -734,23 +1195,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (!passengers[index].services) {
               passengers[index].services = [];
             }
-            
+
             // Check for duplicate services for this passenger
             const existingPassengerServices = passengers[index].services || [];
             const existingServiceIds = existingPassengerServices.map((s: any) => s.id);
             const duplicateServices = (passengerServices as any[]).filter(s => existingServiceIds.includes(s.id));
-            
+
             if (duplicateServices.length > 0) {
               return res.status(400).json({ 
                 message: `Some services are already added for passenger ${index + 1}`, 
                 duplicateServices: duplicateServices.map(s => s.name)
               });
             }
-            
+
             passengers[index].services = [...existingPassengerServices, ...passengerServices];
           }
         }
-        
+
         updatedOrder = await storage.updateOrder(order.id, {
           passengerInfo: passengers
         });
@@ -759,7 +1220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const existingServices = order.selectedServices as any[] || [];
         const existingServiceIds = existingServices.map((s: any) => s.id);
         const duplicateServices = validatedServices.filter(s => existingServiceIds.includes(s.id));
-        
+
         if (duplicateServices.length > 0) {
           return res.status(400).json({ 
             message: "Some services are already added to this order", 
@@ -781,19 +1242,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // For other payment methods (bank_transfer, credit_card, etc.), just log the transaction
         console.log(`Payment processed: User ${req.user.userId}, Amount: ${totalCost.toFixed(2)}, Method: ${paymentMethod}, Description: Payment for additional services on order ${orderNumber}`);
       }
-      
+
       // Update order totals
       const currentSubtotal = parseFloat(order.subtotal);
       const newSubtotal = currentSubtotal + additionalServicesPrice;
       const newTaxes = parseFloat(order.taxes) + taxAmount;
       const newTotal = parseFloat(order.total) + totalCost;
-      
+
       updatedOrder = await storage.updateOrder(order.id, {
         subtotal: newSubtotal.toFixed(2),
         taxes: newTaxes.toFixed(2),
         total: newTotal.toFixed(2),
       });
-      
+
       res.json({
         success: true,
         message: `${services.length} service(s) added and payment processed`,
@@ -817,16 +1278,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { orderNumber } = req.params;
       const { serviceId, passengerId } = req.body;
-      
+
       if (!serviceId) {
         return res.status(400).json({ message: "Service ID is required" });
       }
-      
+
       const order = await storage.getOrderByNumber(orderNumber);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Ensure user owns the order
       if (order.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
@@ -839,7 +1300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (passengerId !== undefined && order.passengerInfo && Array.isArray(order.passengerInfo)) {
         const passengers = order.passengerInfo as any[];
         const passenger = passengers[passengerId];
-        
+
         if (!passenger || !passenger.services || !Array.isArray(passenger.services)) {
           return res.status(404).json({ message: "Service not found for this passenger" });
         }
@@ -851,7 +1312,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Remove service from passenger's services
         passenger.services = passenger.services.filter((s: any) => s.id !== serviceId);
-        
+
         // Update the order with modified passenger info
         updatedOrder = await storage.updateOrder(order.id, {
           passengerInfo: passengers
@@ -860,7 +1321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Handle single passenger or legacy orders
         const services = order.selectedServices as any[];
         serviceToRemove = services?.find((s: any) => s.id === serviceId);
-        
+
         if (!serviceToRemove) {
           return res.status(404).json({ message: "Service not found in this order" });
         }
@@ -913,12 +1374,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/orders/user/:userId", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.userId);
-      
+
       // Ensure user can only access their own orders
       if (userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const orders = await storage.getUserOrders(userId);
       res.json(orders);
     } catch (error) {
@@ -943,7 +1404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         userId: req.user.userId,
       };
-      
+
       const passenger = await storage.createPassenger(passengerData);
       res.json(passenger);
     } catch (error) {
@@ -955,18 +1416,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/passengers/:id", authenticateToken, async (req: any, res) => {
     try {
       const passengerId = parseInt(req.params.id);
-      
+
       // Verify passenger belongs to user
       const existingPassenger = await storage.getPassenger(passengerId);
       if (!existingPassenger || existingPassenger.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const updatedPassenger = await storage.updatePassenger(passengerId, req.body);
       if (!updatedPassenger) {
         return res.status(404).json({ message: "Passenger not found" });
       }
-      
+
       res.json(updatedPassenger);
     } catch (error) {
       console.error("Update passenger error:", error);
@@ -977,18 +1438,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/passengers/:id", authenticateToken, async (req: any, res) => {
     try {
       const passengerId = parseInt(req.params.id);
-      
+
       // Verify passenger belongs to user
       const existingPassenger = await storage.getPassenger(passengerId);
       if (!existingPassenger || existingPassenger.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const deleted = await storage.deletePassenger(passengerId);
       if (!deleted) {
         return res.status(404).json({ message: "Passenger not found" });
       }
-      
+
       res.json({ success: true, message: "Passenger deleted successfully" });
     } catch (error) {
       console.error("Delete passenger error:", error);
@@ -999,16 +1460,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/orders/:orderNumber", authenticateToken, async (req: any, res) => {
     try {
       const order = await storage.getOrderByNumber(req.params.orderNumber);
-      
+
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Ensure user can only access their own orders
       if (order.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       res.json(order);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -1019,17 +1480,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orderId = parseInt(req.params.id);
       const updates = req.body;
-      
+
       const existingOrder = await storage.getOrder(orderId);
       if (!existingOrder) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Ensure user can only update their own orders
       if (existingOrder.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const order = await storage.updateOrder(orderId, updates);
       res.json(order);
     } catch (error) {
@@ -1040,19 +1501,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/orders/:id", authenticateToken, async (req: any, res) => {
     try {
       const orderId = parseInt(req.params.id);
-      
+
       const existingOrder = await storage.getOrder(orderId);
       if (!existingOrder) {
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Ensure user can only cancel their own orders
       if (existingOrder.userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
+      // Calculate refund amount excluding non-refundable fare hold fees
+      let refundAmount = parseFloat(existingOrder.total);
+      let fareHoldDeduction = 0;
+
+      // Check for fare hold services in selectedServices
+      if (existingOrder.selectedServices && Array.isArray(existingOrder.selectedServices)) {
+        const fareHoldServices = existingOrder.selectedServices.filter((service: any) => 
+          service.name?.includes("Fare Hold") || 
+          service.name === "24-Hour Fare Hold Protection" ||
+          service.details?.serviceType === "fare_protection"
+        );
+
+        fareHoldDeduction = fareHoldServices.reduce((total: number, service: any) => {
+          return total + (parseFloat(service.price) * (service.quantity || 1));
+        }, 0);
+      }
+
+      // Check for fare hold services in passenger-specific services
+      if (existingOrder.passengerInfo && Array.isArray(existingOrder.passengerInfo)) {
+        existingOrder.passengerInfo.forEach((passenger: any) => {
+          if (passenger.services && Array.isArray(passenger.services)) {
+            const passengerFareHoldServices = passenger.services.filter((service: any) => 
+              service.name?.includes("Fare Hold") || 
+              service.name === "24-Hour Fare Hold Protection" ||
+              service.details?.serviceType === "fare_protection"
+            );
+
+            fareHoldDeduction += passengerFareHoldServices.reduce((total: number, service: any) => {
+              return total + (parseFloat(service.price) * (service.quantity || 1));
+            }, 0);
+          }
+        });
+      }
+
+      // Apply taxes to fare hold deduction (since original total included taxes)
+      fareHoldDeduction = fareHoldDeduction * 1.12; // Add 12% tax to match original pricing
+
+      // Final refund amount (total minus non-refundable fare hold fees)
+      const finalRefundAmount = Math.max(0, refundAmount - fareHoldDeduction);
+
       const cancelledOrder = await storage.cancelOrder(orderId);
-      res.json(cancelledOrder);
+
+      // Process partial refund if fare hold was involved
+      if (fareHoldDeduction > 0) {
+        // Add the partial refund to wallet (excludes fare hold fees)
+        await storage.addWalletTransaction(
+          req.user.userId, 
+          finalRefundAmount, 
+          'credit', 
+          `Partial refund for cancelled order ${existingOrder.orderNumber} (fare hold fees: $${fareHoldDeduction.toFixed(2)} non-refundable)`
+        );
+
+        res.json({
+          ...cancelledOrder,
+          refundDetails: {
+            originalAmount: refundAmount.toFixed(2),
+            fareHoldDeduction: fareHoldDeduction.toFixed(2),
+            refundedAmount: finalRefundAmount.toFixed(2),
+            message: "Fare hold protection fees are non-refundable"
+          }
+        });
+      } else {
+        // Full refund for orders without fare hold
+        res.json(cancelledOrder);
+      }
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
@@ -1062,17 +1586,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:id/wallet", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       // Ensure user can only access their own wallet
       if (userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       res.json({ walletBalance: user.walletBalance });
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -1082,19 +1606,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       // Ensure user can only update their own information
       if (userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const updateData = req.body;
       const user = await storage.updateUser(userId, updateData);
-      
+
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       const { password, ...userResponse } = user;
       res.json(userResponse);
     } catch (error) {
@@ -1106,7 +1630,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/check-in/eligibility", async (req, res) => {
     try {
       const { orderNumber, lastName } = req.body;
-      
+
       const order = await storage.getOrderByNumber(orderNumber);
       if (!order) {
         return res.json({ eligible: false, message: "Booking not found" });
@@ -1114,7 +1638,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if passenger name matches (support multiple passengers)
       const passengerInfo = typeof order.passengerInfo === 'string' ? JSON.parse(order.passengerInfo) : order.passengerInfo;
-      
+
       let nameMatch = false;
       if (Array.isArray(passengerInfo)) {
         // Multiple passengers - check if any passenger's last name matches
@@ -1125,7 +1649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Single passenger - check direct match
         nameMatch = passengerInfo.lastName.toLowerCase() === lastName.toLowerCase();
       }
-      
+
       if (!nameMatch) {
         return res.json({ eligible: false, message: "Passenger name does not match" });
       }
@@ -1143,7 +1667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get flight details
       if (order.flightId) {
         const flight = await storage.getFlight(order.flightId);
-        
+
         if (flight) {
           res.json({ 
             eligible: true, 
@@ -1166,7 +1690,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/check-in/complete", async (req, res) => {
     try {
       const { orderNumber, seatId, passengerSeats, paymentMethod = 'wallet' } = req.body;
-      
+
       if (!orderNumber) {
         return res.status(400).json({ message: "Order number is required" });
       }
@@ -1251,8 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return res.status(400).json({ 
               message: "Insufficient wallet balance for seat upgrades",
               required: totalCost.toFixed(2),
-              upgrades: upgradeDetails
-            });
+              upgrades: upgradeDetails            });
           }
         }
       } else if (seatId) {
@@ -1328,7 +1851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedOrder = await storage.updateOrder(order.id, updates);
-      
+
       res.json({
         success: true,
         message: totalSeatUpgradeCost > 0 ? 
@@ -1355,7 +1878,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const orderId = parseInt(req.params.orderId);
       const { seatId } = req.body;
-      
+
       const order = await storage.getOrder(orderId);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
@@ -1371,7 +1894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!seat || !seat.isAvailable) {
           return res.status(400).json({ message: "Seat not available" });
         }
-        
+
         // Make old seat available and new seat unavailable
         if (order.seatId) {
           await storage.updateSeatAvailability(order.seatId, true);
@@ -1399,12 +1922,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:id/booking-history", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       // Ensure user can only access their own history
       if (userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const history = await storage.getUserBookingHistory(userId);
       res.json(history);
     } catch (error) {
@@ -1425,12 +1948,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/loyalty/user/:id/status", authenticateToken, async (req: any, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       // Ensure user can only access their own loyalty status
       if (userId !== req.user.userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
@@ -1462,10 +1985,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { tierName } = req.params;
       const { phase } = req.query;
-      
-      const bundles = await storage.getLoyaltyBundles(tierName, phase as string);
-      res.json(bundles);
+
+      // Validate tier name
+      const validTiers = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
+      if (!validTiers.includes(tierName.toLowerCase())) {
+        return res.status(400).json({ message: "Invalid tier name" });
+      }
+
+      const bundles = await storage.getLoyaltyBundles(tierName.toLowerCase(), phase as string);
+
+      // Log for debugging
+      console.log(`Fetching loyalty bundles for tier: ${tierName}, phase: ${phase}, found: ${bundles.length} bundles`);
+
+      // Double-check filtering on server side
+      const filteredBundles = bundles.filter(bundle => bundle.tierName === tierName.toLowerCase());
+
+      if (filteredBundles.length !== bundles.length) {
+        console.warn(`Bundle filtering mismatch: Expected ${bundles.length}, got ${filteredBundles.length} for tier ${tierName}`);
+      }
+
+      res.json(filteredBundles);
     } catch (error) {
+      console.error("Error fetching loyalty bundles:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -1474,7 +2015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { tierName } = req.params;
       const { phase = 'booking' } = req.query;
-      
+
       const discountInfo = await storage.getBundleDiscountForTier(tierName, phase as string);
       res.json(discountInfo);
     } catch (error) {
@@ -1485,7 +2026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/loyalty/apply-bundles", authenticateToken, async (req: any, res) => {
     try {
       const { orderNumber, selectedBundles, phase = 'booking' } = req.body;
-      
+
       if (!orderNumber || !selectedBundles || !Array.isArray(selectedBundles)) {
         return res.status(400).json({ message: "Order number and selected bundles are required" });
       }
@@ -1507,7 +2048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get user's tier bundles
       const availableBundles = await storage.getLoyaltyBundles(user.loyaltyTier, phase);
-      
+
       // Calculate discounts and complimentary services
       let totalDiscount = 0;
       let complimentaryServices: any[] = [];
@@ -1560,6 +2101,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upgrade user tier
+  app.post('/api/loyalty/upgrade-tier', authenticateToken, async (req: any, res) => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const eligibility = await storage.calculateTierEligibility(userId);
+
+      if (!eligibility.qualified) {
+        return res.status(400).json({ error: 'User does not qualify for tier upgrade' });
+      }
+
+      await storage.upgradeUserTier(userId, eligibility.suggestedTier);
+
+      res.json({ 
+        success: true, 
+        newTier: eligibility.suggestedTier,
+        message: 'Tier upgraded successfully'
+      });
+    } catch (error) {
+      console.error('Error upgrading tier:', error);
+      res.status(500).json({ error: 'Failed to upgrade tier' });
+    }
+  });
+
   // Cart Management Routes
   app.get("/api/cart", authenticateToken, async (req: any, res) => {
     try {
@@ -1578,7 +2146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...req.body,
         userId
       });
-      
+
       const cartItem = await storage.addCartItem(cartItemData);
       res.json(cartItem);
     } catch (error) {
@@ -1590,12 +2158,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = parseInt(req.params.id);
       const updates = req.body;
-      
+
       const updatedItem = await storage.updateCartItem(itemId, updates);
       if (!updatedItem) {
         return res.status(404).json({ message: "Cart item not found" });
       }
-      
+
       res.json(updatedItem);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -1617,11 +2185,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = parseInt(req.params.id);
       const success = await storage.removeCartItem(itemId);
-      
+
       if (!success) {
         return res.status(404).json({ message: "Cart item not found" });
       }
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Remove cart item error:", error);
@@ -1634,11 +2202,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const serviceId = parseInt(req.params.id);
       const updatedPricing = await dynamicPricingService.updateServicePricing(serviceId);
-      
+
       if (!updatedPricing) {
         return res.status(404).json({ message: "Service pricing not found" });
       }
-      
+
       res.json(updatedPricing);
     } catch (error) {
       console.error("Service pricing update error:", error);
@@ -1651,11 +2219,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const flightId = parseInt(req.params.flightId);
       const pricing = await dynamicPricingService.getCurrentPrice('flight', flightId);
-      
+
       if (!pricing) {
         return res.status(404).json({ message: "Flight pricing not found" });
       }
-      
+
       res.json(pricing);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -1676,7 +2244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { flightId, holdDuration, holdPrice, lockedFarePrice, paymentMethod } = req.body;
       const userId = req.user.userId;
-      
+
       // Check if user already has an active hold for this flight
       const existingHold = await dynamicPricingService.getUserFareHold(userId, flightId);
       if (existingHold.length > 0) {
@@ -1684,10 +2252,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "You already have an active fare hold for this flight" 
         });
       }
-      
+
       // Use provided holdPrice or calculate default
       const finalHoldPrice = holdPrice || (holdDuration === 24 ? 49.99 : holdDuration === 48 ? 79.99 : 99.99);
-      
+
       // Validate payment method
       const validPaymentMethods = ['credit_card', 'debit_card', 'bank_transfer', 'wallet'];
       if (!paymentMethod || !validPaymentMethods.includes(paymentMethod)) {
@@ -1696,7 +2264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           validMethods: validPaymentMethods 
         });
       }
-      
+
       // Process payment based on method
       if (paymentMethod === 'wallet') {
         // Check wallet balance and deduct if sufficient
@@ -1708,7 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             available: user?.walletBalance || "0.00"
           });
         }
-        
+
         // Deduct from wallet
         await storage.updateWalletBalance(userId, -finalHoldPrice);
         await storage.addWalletTransaction(
@@ -1720,12 +2288,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // For other payment methods (credit_card, debit_card, bank_transfer), simulate payment processing
         console.log(`Fare hold payment processed: User ${userId}, Amount: ${finalHoldPrice.toFixed(2)}, Method: ${paymentMethod}, Flight: ${flightId}`);
-        
+
         // In a real system, you would integrate with payment gateways here
         // For now, we'll just log the transaction and proceed
         // You could add specific validation for each payment method here
       }
-      
+
       const fareHold = await dynamicPricingService.createFareHold(
         userId, 
         flightId, 
@@ -1734,7 +2302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lockedFarePrice,
         paymentMethod
       );
-      
+
       res.json({
         ...fareHold,
         paymentMethod: paymentMethod,
@@ -1750,7 +2318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const flightId = parseInt(req.params.flightId);
       const userId = req.user.userId;
-      
+
       const fareHold = await dynamicPricingService.getUserFareHold(userId, flightId);
       res.json(fareHold.length > 0 ? fareHold[0] : null);
     } catch (error) {

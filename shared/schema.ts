@@ -78,7 +78,7 @@ export const orders = pgTable("orders", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   orderNumber: text("order_number").notNull().unique(),
-  status: text("status").notNull(), // pending, confirmed, cancelled, completed
+  status: text("status").notNull(), // pending_payment, confirmed, cancelled, completed, order_expired
   flightId: integer("flight_id").references(() => flights.id),
   seatId: integer("seat_id").references(() => seats.id),
   assignedSeats: json("assigned_seats").array(), // Array of seat assignments per passenger
@@ -89,6 +89,8 @@ export const orders = pgTable("orders", {
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   paymentMethod: text("payment_method").notNull().default("credit_card"), // credit_card, paypal, wallet, bank_transfer
   paymentStatus: text("payment_status").notNull(), // pending, paid, refunded
+  paymentExpiresAt: timestamp("payment_expires_at"), // 1-minute payment window
+  reservedInventory: json("reserved_inventory"), // seats and services reserved during payment window
   canCheckIn: boolean("can_check_in").default(false),
   isCheckedIn: boolean("is_checked_in").default(false),
   checkInTime: timestamp("check_in_time"),

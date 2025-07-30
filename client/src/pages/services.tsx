@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ServiceCardEnhanced from "@/components/services/service-card-enhanced";
-import { CartRefresh } from "@/components/cart/cart-refresh";
+import LoyaltyTierDisplay from "@/components/loyalty-tier-display";
 import { useDynamicPricing } from "@/hooks/use-dynamic-pricing";
-import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, ArrowRight, CheckCircle, Plane, Clock, MapPin, Users, RefreshCw, Star, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Services() {
   const [, setLocation] = useLocation();
@@ -17,32 +20,125 @@ export default function Services() {
   const [passengerCount, setPassengerCount] = useState(1);
   const [currentPassenger, setCurrentPassenger] = useState(0);
   const [passengerServices, setPassengerServices] = useState<{[key: number]: any[]}>({});
+  const [selectedLoyaltyBundles, setSelectedLoyaltyBundles] = useState<number[]>([]);
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
-    const storedFlight = sessionStorage.getItem("selectedFlight");
-    const storedSeat = sessionStorage.getItem("selectedSeat");
-    const storedSearch = sessionStorage.getItem("flightSearch");
-    
-    if (storedFlight) {
-      setSelectedFlight(JSON.parse(storedFlight));
-    } else {
-      setLocation("/");
-    }
-    
-    if (storedSeat) {
-      setSelectedSeat(JSON.parse(storedSeat));
-    }
-    
-    if (storedSearch) {
-      const searchData = JSON.parse(storedSearch);
-      setPassengerCount(searchData.passengers || 1);
-    }
-  }, [setLocation]);
+    const initializeData = () => {
+      const storedFlight = sessionStorage.getItem("selectedFlight");
+      const storedSeat = sessionStorage.getItem("selectedSeat");
+      const storedSearch = sessionStorage.getItem("flightSearch");
+
+      if (storedFlight) {
+        setSelectedFlight(JSON.parse(storedFlight));
+      }
+
+      if (storedSeat) {
+        setSelectedSeat(JSON.parse(storedSeat));
+      }
+
+      if (storedSearch) {
+        const searchData = JSON.parse(storedSearch);
+        setPassengerCount(searchData.passengers || 1);
+      }
+    };
+
+    initializeData();
+  }, []);
 
   const { services, isLoading: servicesLoading, refreshPricing } = useDynamicPricing(currentPhase, {
     enabled: !!selectedFlight,
     interval: 30000, // Refresh every 30 seconds
   });
+
+  // Fetch personalized service recommendations
+  const { data: recommendations, isLoading: recommendationsLoading, error: recommendationsError } = useQuery({
+    queryKey: ["/api/services/recommendations", selectedFlight?.id, selectedFlight?.departureTime],
+    queryFn: async () => {
+      if (!selectedFlight?.id || !selectedFlight?.departureTime) {
+        throw new Error("Missing flight data");
+      }
+
+      const token = localStorage.getItem('auth_token');
+
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
+      const response = await fetch(`/api/services/recommendations?flightId=${selectedFlight.id}&departureTime=${encodeURIComponent(selectedFlight.departureTime)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      }
+
+      return await response.json();
+    },
+    enabled: isAuthenticated && !!selectedFlight && currentPhase === "booking",
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: 2
+  });
+
+  // Fetch user's loyalty status and available bundles
+  const { data: loyaltyStatus }: { data: any } = useQuery({
+    queryKey: ['/api/loyalty/user', user?.id, 'status'],
+    enabled: !!user && isAuthenticated,
+  });
+
+  const { data: loyaltyBundles = [] }: { data: any[] } = useQuery({
+    queryKey: ['/api/loyalty/bundles', loyaltyStatus?.currentTier?.tierName, 'booking'],
+    queryFn: async () => {
+      if (!loyaltyStatus?.currentTier?.tierName) return [];
+      const response = await fetch(`/api/loyalty/bundles/${loyaltyStatus.currentTier.tierName}?phase=booking`);
+      if (!response.ok) {
+        console.error('Failed to fetch loyalty bundles:', response.status);
+        return [];
+      }
+      const bundles = await response.json();
+      console.log(`Fetched ${bundles.length} bundles for ${loyaltyStatus.currentTier.tierName} tier:`, bundles);
+      return bundles;
+    },
+    enabled: !!loyaltyStatus?.currentTier?.tierName,
+  });
+
+  // Handle loyalty bundle selection
+  const handleBundleToggle = (bundleId: number) => {
+    setSelectedLoyaltyBundles(prev => 
+      prev.includes(bundleId) 
+        ? prev.filter(id => id !== bundleId)
+        : [...prev, bundleId]
+    );
+  };
+
+  // Function to enrich services with recommendation data
+  const enrichServicesWithRecommendations = (services: any[]) => {
+    if (!recommendations?.recommendedServices) {
+      return services;
+    }
+
+    return services.map(service => {
+      const recommendation = recommendations.recommendedServices.find(
+        (rec: any) => rec.id === service.id
+      );
+
+      if (recommendation) {
+        return {
+          ...service,
+          recommendationReason: recommendation.recommendationReason,
+          userFrequency: recommendation.userFrequency
+        };
+      }
+
+      return service;
+    });
+  };
+
+  // Removed: Price change notifications now only shown in cart for cart items
 
   // Filter out fare hold services if user already has an active fare hold
   const filteredServices = selectedFlight?.fareHold 
@@ -53,7 +149,8 @@ export default function Services() {
     : services;
 
   const handleBack = () => {
-    setLocation("/booking");
+    // Preserve search parameters when going back to flights
+    setLocation("/flights");
   };
 
   const handleContinue = () => {
@@ -105,6 +202,80 @@ export default function Services() {
     }
   };
 
+  // Component for displaying recommended services
+  const RecommendedServicesSection = () => {
+    if (!isAuthenticated || currentPhase !== "booking") {
+      return null;
+    }
+
+    if (recommendationsLoading) {
+      return (
+        <Card className="mb-8 border-0 shadow-xl bg-gradient-to-r from-amber-50 to-orange-50">
+          <CardHeader>
+            <CardTitle className="text-xl font-bold text-gray-800">
+              Loading Recommendations...
+            </CardTitle>
+          </CardHeader>
+        </Card>
+      );
+    }
+
+    if (!recommendations?.recommendedServices?.length) {
+      return null; // Hide section if no recommendations available
+    }
+
+    return (
+      <Card className="mb-8 border-0 shadow-xl bg-gradient-to-r from-amber-50 to-orange-50">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-full">
+              <Star className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <CardTitle className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                Recommended for You
+                <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                  <TrendingUp className="w-3 h-3 mr-1" />
+                  Personal
+                </Badge>
+              </CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Based on your {recommendations.userOrderCount} previous bookings and flight timing
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {recommendations.recommendedServices.map((service: any) => {
+              // Find the matching service from filteredServices to get current dynamic pricing
+              const dynamicService = filteredServices.find((fs: any) => fs.id === service.id);
+              const enrichedService = {
+                ...service,
+                // Override with current dynamic pricing data
+                ...(dynamicService && {
+                  price: dynamicService.price,
+                  dynamicPricing: dynamicService.dynamicPricing,
+                  basePrice: dynamicService.basePrice,
+                  inventory: dynamicService.inventory
+                })
+              };
+
+              return (
+                <div key={service.id} className="relative">
+                  <ServiceCardEnhanced
+                    service={enrichedService}
+                    phase={service.phase || "booking"}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (!selectedFlight) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -119,6 +290,18 @@ export default function Services() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Navigation */}
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={handleBack}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Flights
+          </Button>
+        </div>
+
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -139,9 +322,9 @@ export default function Services() {
                 </div>
                 <span className="text-sm font-medium text-green-600 hidden md:block">Flight Selected</span>
               </div>
-              
+
               <div className="w-8 h-0.5 bg-gray-300"></div>
-              
+
               {/* Add Services */}
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center text-white text-sm font-semibold">
@@ -149,9 +332,9 @@ export default function Services() {
                 </div>
                 <span className="text-sm font-medium text-airline-blue hidden md:block">Add Services</span>
               </div>
-              
+
               <div className="w-8 h-0.5 bg-gray-300"></div>
-              
+
               {/* Payment */}
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600 text-sm font-semibold">
@@ -209,6 +392,20 @@ export default function Services() {
           </CardContent>
         </Card>
 
+        {/* Loyalty Tier Display */}
+        {loyaltyStatus && loyaltyBundles.length > 0 && (
+          <LoyaltyTierDisplay
+            loyaltyStatus={loyaltyStatus}
+            loyaltyBundles={loyaltyBundles}
+            selectedBundles={selectedLoyaltyBundles}
+            onBundleToggle={handleBundleToggle}
+            className="mb-8"
+          />
+        )}
+
+        {/* Recommended Services Section */}
+        <RecommendedServicesSection />
+
         {/* Multi-Passenger Service Selection */}
         {passengerCount > 1 ? (
           <div className="mb-8">
@@ -222,16 +419,6 @@ export default function Services() {
                 </p>
               </div>
               <div className="flex items-center space-x-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={refreshPricing}
-                  disabled={servicesLoading}
-                  className="flex items-center space-x-2"
-                >
-                  <RefreshCw className={`w-4 h-4 ${servicesLoading ? 'animate-spin' : ''}`} />
-                  <span>Refresh Prices</span>
-                </Button>
                 <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
                   <Users className="w-4 h-4 text-blue-600" />
                   <span className="text-sm font-medium text-blue-800">
@@ -262,7 +449,7 @@ export default function Services() {
                 Services selected here will be specifically assigned to this passenger.
               </p>
             </div>
-              
+
             {/* Service Phase Tabs */}
             <Tabs value={currentPhase} onValueChange={setCurrentPhase} className="w-full">
               <TabsList className="grid w-full grid-cols-4 mb-8">
@@ -295,8 +482,8 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredServices
-                    .filter(service => service.phase === currentPhase)
+                  {enrichServicesWithRecommendations(filteredServices)
+                    .filter((service: any) => service.phase === currentPhase)
                     .map((service: any) => (
                       <ServiceCardEnhanced 
                         key={`${service.id}-passenger-${currentPassenger}`} 
@@ -307,7 +494,7 @@ export default function Services() {
                     ))}
                 </div>
 
-                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
+                {filteredServices.filter((service: any) => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
@@ -360,14 +547,14 @@ export default function Services() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredServices
-                    .filter(service => service.phase === currentPhase)
+                  {enrichServicesWithRecommendations(filteredServices)
+                    .filter((service: any) => service.phase === currentPhase)
                     .map((service: any) => (
                       <ServiceCardEnhanced key={service.id} service={service} phase={currentPhase} />
                     ))}
                 </div>
 
-                {filteredServices.filter(service => service.phase === currentPhase).length === 0 && (
+                {filteredServices.filter((service: any) => service.phase === currentPhase).length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-gray-500">No services available for this phase.</p>
                   </div>
@@ -377,8 +564,7 @@ export default function Services() {
           </div>
         )}
 
-        {/* Cart refresh for real-time pricing updates */}
-        <CartRefresh enabled={true} interval={60000} />
+        {/* Price change notifications now only shown in cart sidebar for cart items */}
 
         {/* Navigation Buttons */}
         <div className="flex justify-between">

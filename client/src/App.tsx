@@ -10,6 +10,7 @@ import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import CartSidebar from "@/components/cart/cart-sidebar";
 import { CartSync } from "@/components/cart/cart-sync";
+import { CartRefresh } from "@/components/cart/cart-refresh";
 import Home from "@/pages/home";
 import Flights from "@/pages/flights";
 import Booking from "@/pages/booking";
@@ -17,6 +18,7 @@ import Booking from "@/pages/booking";
 import Services from "@/pages/services";
 import Checkout from "@/pages/checkout";
 import Payment from "@/pages/payment";
+import CompletePayment from "@/pages/complete-payment";
 import OrderSuccess from "@/pages/order-success";
 import OrderDetails from "@/pages/order-details";
 import MyOrders from "@/pages/my-orders";
@@ -24,6 +26,7 @@ import CheckIn from "@/pages/check-in";
 import BoardingPassSuccess from "@/pages/boarding-pass-success";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Profile from "@/pages/profile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -36,6 +39,7 @@ function Router() {
       <Route path="/services" component={Services} />
       <Route path="/checkout" component={Checkout} />
       <Route path="/payment" component={Payment} />
+      <Route path="/complete-payment/:orderNumber" component={CompletePayment} />
       <Route path="/order-success/:orderNumber" component={OrderSuccess} />
       <Route path="/order/:orderNumber" component={OrderDetails} />
       <Route path="/my-orders" component={MyOrders} />
@@ -43,6 +47,7 @@ function Router() {
       <Route path="/boarding-pass-success" component={BoardingPassSuccess} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -62,11 +67,14 @@ function App() {
               <Footer />
               <CartSidebar />
               <CartSync />
+              
             </div>
             <Toaster />
           </TooltipProvider>
         </WalletProvider>
       </AuthProvider>
+       {/* Global cart refresh for price updates */}
+       <CartRefresh enabled={true} interval={60000} />
     </QueryClientProvider>
   );
 }

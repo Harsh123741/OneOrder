@@ -52,75 +52,14 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section with Flight Search */}
-      <section className="hero-gradient text-white py-20 relative overflow-hidden">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1920&h=800&fit=crop')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 animate-fade-in">
-            Your Journey Begins Here
-          </h1>
-          <p className="text-xl md:text-2xl mb-8 opacity-90 animate-fade-in">
-            Discover the world with premium airline services and seamless
-            booking experience
-          </p>
-        </div>
-      </section>
-
+    <div className="min-h-screen pt-20">
       {/* Flight Search Form */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 relative z-10">
+        <div className="text-center mb-5">
+          <h2 className="text-3xl font-bold text-gray-900">Flight Search</h2>
+        </div>
         <div className="animate-fade-in">
           <FlightSearchForm />
-        </div>
-      </section>
-
-      {/* Popular Destinations */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Popular Destinations
-          </h2>
-          <p className="text-lg text-gray-600">
-            Discover amazing places around the world
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {popularDestinations.map((destination) => (
-            <Card
-              key={destination.city}
-              className="group cursor-pointer transform hover:scale-105 transition-transform duration-300 overflow-hidden"
-            >
-              <div className="relative">
-                <img
-                  src={destination.image}
-                  alt={`${destination.city}, ${destination.country}`}
-                  className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-30 group-hover:bg-opacity-20 transition-all duration-300"></div>
-                <div className="absolute bottom-4 left-4 text-white">
-                  <h3 className="text-lg font-bold">{destination.city}</h3>
-                  <p className="text-sm opacity-90">{destination.country}</p>
-                  <p className="text-sm font-semibold mt-1">
-                    From ${destination.price}
-                  </p>
-                </div>
-                <div className="absolute top-4 right-4">
-                  <MapPin className="h-5 w-5 text-white" />
-                </div>
-              </div>
-            </Card>
-          ))}
         </div>
       </section>
 

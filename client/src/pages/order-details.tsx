@@ -24,7 +24,7 @@ import {
   Wallet,
   Shield,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -69,18 +69,28 @@ export default function OrderDetails() {
       const response = await apiRequest("DELETE", `/api/orders/${orderId}`);
       return response.json();
     },
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/orders/user", user?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/orders/user", user?.id],
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       await refreshBalance(); // Update wallet balance immediately
       // Force a second refresh after a short delay to ensure balance is updated
       setTimeout(() => refreshBalance(), 500);
-      toast({
-        title: "Order Cancelled",
-        description:
-          "Your order has been cancelled and refund has been processed to your wallet.",
-      });
+      
+      // Show appropriate message based on refund details
+      if (data.refundDetails) {
+        toast({
+          title: "Order Cancelled",
+          description: `Refunded $${data.refundDetails.refundedAmount} to your wallet. Fare hold fees ($${data.refundDetails.fareHoldDeduction}) are non-refundable.`,
+        });
+      } else {
+        toast({
+          title: "Order Cancelled",
+          description: "Your order has been cancelled and full refund has been processed to your wallet.",
+        });
+      }
       setLocation("/my-orders");
     },
     onError: () => {
@@ -95,10 +105,16 @@ export default function OrderDetails() {
   const handleCancel = async () => {
     if (!order) return;
 
+    // Check if order contains fare hold services
+    const hasFareHold = checkForFareHoldServices(order);
+    
+    const description = hasFareHold 
+      ? "Are you sure you want to cancel this order? Please note: Fare hold protection fees are non-refundable. All other charges will be refunded to your wallet."
+      : "Are you sure you want to cancel this order? You will receive a full refund in your wallet.";
+
     const confirmed = await showConfirmation({
       title: "Cancel Order",
-      description:
-        "Are you sure you want to cancel this order? You will receive a full refund in your wallet.",
+      description,
       confirmText: "Yes, Cancel Order",
       cancelText: "Keep Order",
       variant: "destructive",
@@ -109,11 +125,44 @@ export default function OrderDetails() {
     }
   };
 
+  // Helper function to check for fare hold services
+  const checkForFareHoldServices = (order: any) => {
+    // Check selectedServices
+    if (order.selectedServices && Array.isArray(order.selectedServices)) {
+      const hasFareHoldInSelected = order.selectedServices.some((service: any) => 
+        service.name?.includes("Fare Hold") || 
+        service.name === "24-Hour Fare Hold Protection" ||
+        service.details?.serviceType === "fare_protection"
+      );
+      if (hasFareHoldInSelected) return true;
+    }
+
+    // Check passenger-specific services
+    if (order.passengerInfo && Array.isArray(order.passengerInfo)) {
+      const hasFareHoldInPassengers = order.passengerInfo.some((passenger: any) => {
+        if (passenger.services && Array.isArray(passenger.services)) {
+          return passenger.services.some((service: any) => 
+            service.name?.includes("Fare Hold") || 
+            service.name === "24-Hour Fare Hold Protection" ||
+            service.details?.serviceType === "fare_protection"
+          );
+        }
+        return false;
+      });
+      if (hasFareHoldInPassengers) return true;
+    }
+
+    return false;
+  };
+
   const [showAddServices, setShowAddServices] = useState(false);
   const [availableServices, setAvailableServices] = useState<any[]>([]);
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
-  const [selectedPassengerServices, setSelectedPassengerServices] = useState<{[key: number]: any[]}>({});
-  const [currentServicePassenger, setCurrentServicePassenger] = useState<number>(0);
+  const [selectedPassengerServices, setSelectedPassengerServices] = useState<{
+    [key: number]: any[];
+  }>({});
+  const [currentServicePassenger, setCurrentServicePassenger] =
+    useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("credit_card");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [paymentDetails, setPaymentDetails] = useState({
@@ -127,6 +176,38 @@ export default function OrderDetails() {
     zipCode: "",
     country: "",
   });
+
+  // Payment timer state
+  const [paymentTimer, setPaymentTimer] = useState<{
+    isExpired: boolean;
+    remainingMinutes: number;
+    remainingSeconds: number;
+  } | null>(null);
+
+  // Calculate remaining payment time for pending orders using paymentExpiresAt
+  useEffect(() => {
+    if ((order?.status === "pending_payment" || order?.status === "pending") && order?.paymentExpiresAt) {
+      const updateTimer = () => {
+        const expiresAt = new Date(order.paymentExpiresAt);
+        const currentTime = new Date();
+        const remainingTime = Math.max(0, expiresAt.getTime() - currentTime.getTime());
+        const remainingMinutes = remainingTime / (1000 * 60);
+        const isExpired = remainingMinutes <= 0;
+        
+        setPaymentTimer({
+          isExpired,
+          remainingMinutes: Math.floor(remainingMinutes),
+          remainingSeconds: Math.floor((remainingMinutes % 1) * 60)
+        });
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setPaymentTimer(null);
+    }
+  }, [order?.status, order?.paymentExpiresAt]);
 
   const { data: services } = useQuery({
     queryKey: ["/api/services"],
@@ -190,7 +271,13 @@ export default function OrderDetails() {
   });
 
   const removeServiceMutation = useMutation({
-    mutationFn: async ({ serviceId, passengerId }: { serviceId: number; passengerId?: number }) => {
+    mutationFn: async ({
+      serviceId,
+      passengerId,
+    }: {
+      serviceId: number;
+      passengerId?: number;
+    }) => {
       const response = await apiRequest(
         "POST",
         `/api/orders/${orderNumber}/remove-service`,
@@ -215,7 +302,8 @@ export default function OrderDetails() {
     onError: (error: any) => {
       toast({
         title: "Failed to Remove Service",
-        description: error?.message || "Please try again or contact customer service.",
+        description:
+          error?.message || "Please try again or contact customer service.",
         variant: "destructive",
       });
     },
@@ -234,19 +322,30 @@ export default function OrderDetails() {
     }
   };
 
-  const handlePassengerServiceToggle = (service: any, passengerIndex: number) => {
-    const currentPassengerServices = selectedPassengerServices[passengerIndex] || [];
-    const exists = currentPassengerServices.find((s: any) => s.id === service.id);
-    
+  const handlePassengerServiceToggle = (
+    service: any,
+    passengerIndex: number,
+  ) => {
+    const currentPassengerServices =
+      selectedPassengerServices[passengerIndex] || [];
+    const exists = currentPassengerServices.find(
+      (s: any) => s.id === service.id,
+    );
+
     if (exists) {
-      setSelectedPassengerServices(prev => ({
+      setSelectedPassengerServices((prev) => ({
         ...prev,
-        [passengerIndex]: currentPassengerServices.filter((s: any) => s.id !== service.id)
+        [passengerIndex]: currentPassengerServices.filter(
+          (s: any) => s.id !== service.id,
+        ),
       }));
     } else {
-      setSelectedPassengerServices(prev => ({
+      setSelectedPassengerServices((prev) => ({
         ...prev,
-        [passengerIndex]: [...currentPassengerServices, { ...service, quantity: 1, passengerId: passengerIndex }]
+        [passengerIndex]: [
+          ...currentPassengerServices,
+          { ...service, quantity: 1, passengerId: passengerIndex },
+        ],
       }));
     }
   };
@@ -299,7 +398,10 @@ export default function OrderDetails() {
     return true;
   };
 
-  const handleRemoveService = async (serviceId: number, passengerId?: number) => {
+  const handleRemoveService = async (
+    serviceId: number,
+    passengerId?: number,
+  ) => {
     const confirmed = await showConfirmation({
       title: "Remove Service",
       description:
@@ -340,8 +442,12 @@ export default function OrderDetails() {
         return <Badge className="bg-green-100 text-green-800">Confirmed</Badge>;
       case "pending":
         return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case "pending_payment":
+        return <Badge className="bg-orange-100 text-orange-800">Pending Payment</Badge>;
       case "cancelled":
         return <Badge className="bg-red-100 text-red-800">Cancelled</Badge>;
+      case "order_expired":
+        return <Badge className="bg-gray-100 text-gray-800">Order Expired</Badge>;
       case "completed":
         return <Badge className="bg-blue-100 text-blue-800">Completed</Badge>;
       default:
@@ -439,6 +545,36 @@ export default function OrderDetails() {
                     {order?.total ? parseFloat(order.total).toFixed(2) : "0.00"}
                   </span>
                 </p>
+
+                {/* Complete Payment Button for Pending Orders */}
+                {order?.status === "pending" &&
+                  order?.paymentStatus === "pending" && (
+                    <>
+                      <Button
+                        onClick={() =>
+                          setLocation(`/complete-payment/${order.orderNumber}`)
+                        }
+                        className="mt-3 bg-green-600 hover:bg-green-700 text-white"
+                        disabled={paymentTimer?.isExpired}
+                      >
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
+                      </Button>
+                      
+                      {/* Payment Timer Display */}
+                      {paymentTimer && !paymentTimer.isExpired && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s
+                        </p>
+                      )}
+                      
+                      {paymentTimer?.isExpired && (
+                        <p className="text-xs text-red-600 mt-1">
+                          Payment window expired - please create a new booking
+                        </p>
+                      )}
+                    </>
+                  )}
               </div>
             </div>
           </CardContent>
@@ -749,29 +885,43 @@ export default function OrderDetails() {
           </CardHeader>
           <CardContent>
             {(() => {
-              const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
-              
-              // Get common services (fare hold, etc.) from selectedServices or cart-based services
-              const commonServices = ((order as any)?.selectedServices || []).filter((service: any) => 
-                service.name?.includes('Fare Hold') || 
-                service.details?.serviceType === 'fare_protection' ||
-                service.details?.isCommonService === true
-              );
-              
-              // Check if any passenger has services
-              const hasPassengerServices = passengers.some((passenger: any) => 
-                passenger.services && Array.isArray(passenger.services) && passenger.services.length > 0
-              );
-              
-              // Check for other selected services (non-common)
-              const hasOtherServices = ((order as any)?.selectedServices && (order as any).selectedServices.length > 0) && 
-                ((order as any).selectedServices.some((service: any) => 
-                  !service.name?.includes('Fare Hold') && 
-                  service.details?.serviceType !== 'fare_protection' && 
-                  service.details?.isCommonService !== true
-                ));
+              const passengers = (order as any)?.passengerInfo || [
+                { firstName: "Guest", lastName: "Passenger" },
+              ];
 
-              const hasAnyServices = hasPassengerServices || hasOtherServices || commonServices.length > 0;
+              // Get common services (fare hold, etc.) from selectedServices or cart-based services
+              const commonServices = (
+                (order as any)?.selectedServices || []
+              ).filter(
+                (service: any) =>
+                  service.name?.includes("Fare Hold") ||
+                  service.details?.serviceType === "fare_protection" ||
+                  service.details?.isCommonService === true,
+              );
+
+              // Check if any passenger has services
+              const hasPassengerServices = passengers.some(
+                (passenger: any) =>
+                  passenger.services &&
+                  Array.isArray(passenger.services) &&
+                  passenger.services.length > 0,
+              );
+
+              // Check for other selected services (non-common)
+              const hasOtherServices =
+                (order as any)?.selectedServices &&
+                (order as any).selectedServices.length > 0 &&
+                (order as any).selectedServices.some(
+                  (service: any) =>
+                    !service.name?.includes("Fare Hold") &&
+                    service.details?.serviceType !== "fare_protection" &&
+                    service.details?.isCommonService !== true,
+                );
+
+              const hasAnyServices =
+                hasPassengerServices ||
+                hasOtherServices ||
+                commonServices.length > 0;
 
               if (!hasAnyServices) {
                 return (
@@ -796,102 +946,149 @@ export default function OrderDetails() {
                         Travel Protection & Common Services
                       </h4>
                       <div className="space-y-3">
-                        {commonServices.map((service: any, serviceIndex: number) => (
-                          <div
-                            key={serviceIndex}
-                            className="flex items-center justify-between py-3 px-4 bg-white rounded-lg border"
-                          >
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                                <Shield className="text-white w-4 h-4" />
+                        {commonServices.map(
+                          (service: any, serviceIndex: number) => (
+                            <div
+                              key={serviceIndex}
+                              className="flex items-center justify-between py-3 px-4 bg-white rounded-lg border"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                  <Shield className="text-white w-4 h-4" />
+                                </div>
+                                <div>
+                                  <span className="font-medium">
+                                    {service.name}
+                                  </span>
+                                  {service.quantity > 1 && (
+                                    <span className="text-sm text-gray-600 ml-2">
+                                      x{service.quantity}
+                                    </span>
+                                  )}
+                                  <p className="text-sm text-gray-600">
+                                    {service.description}
+                                  </p>
+                                  {service.details?.passengerCount && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs mt-1"
+                                    >
+                                      Covers all{" "}
+                                      {service.details.passengerCount} passenger
+                                      {service.details.passengerCount !== 1
+                                        ? "s"
+                                        : ""}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
-                              <div>
-                                <span className="font-medium">{service.name}</span>
-                                {service.quantity > 1 && (
-                                  <span className="text-sm text-gray-600 ml-2">x{service.quantity}</span>
-                                )}
-                                <p className="text-sm text-gray-600">{service.description}</p>
-                                {service.details?.passengerCount && (
-                                  <Badge variant="outline" className="text-xs mt-1">
-                                    Covers all {service.details.passengerCount} passenger{service.details.passengerCount !== 1 ? 's' : ''}
-                                  </Badge>
-                                )}
+                              <div className="flex items-center space-x-3">
+                                <span className="font-semibold text-blue-600">
+                                  $
+                                  {(
+                                    parseFloat(service.price) *
+                                    (service.quantity || 1)
+                                  ).toFixed(2)}
+                                </span>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-3">
-                              <span className="font-semibold text-blue-600">
-                                ${(parseFloat(service.price) * (service.quantity || 1)).toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          ),
+                        )}
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Passenger-Specific Services */}
                   {passengers.map((passenger: any, passengerIndex: number) => {
                     // Get services for this passenger
-                    const passengerServices = passenger.services && Array.isArray(passenger.services) 
-                      ? passenger.services 
-                      : (passengers.length === 1 && (order as any)?.selectedServices ? (order as any).selectedServices : []);
-                    
+                    const passengerServices =
+                      passenger.services && Array.isArray(passenger.services)
+                        ? passenger.services
+                        : passengers.length === 1 &&
+                            (order as any)?.selectedServices
+                          ? (order as any).selectedServices
+                          : [];
+
                     if (!passengerServices || passengerServices.length === 0) {
                       return null;
                     }
 
                     return (
-                      <div key={passengerIndex} className="border border-gray-200 rounded-lg p-4">
+                      <div
+                        key={passengerIndex}
+                        className="border border-gray-200 rounded-lg p-4"
+                      >
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="font-semibold text-gray-900 flex items-center gap-2">
                             <User className="w-4 h-4" />
                             {passenger.firstName} {passenger.lastName}
                           </h4>
                           <Badge variant="secondary" className="text-xs">
-                            {passengerServices.length} service{passengerServices.length !== 1 ? 's' : ''}
+                            {passengerServices.length} service
+                            {passengerServices.length !== 1 ? "s" : ""}
                           </Badge>
                         </div>
-                        
+
                         <div className="space-y-3">
-                          {passengerServices.map((service: any, serviceIndex: number) => (
-                            <div
-                              key={serviceIndex}
-                              className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg"
-                            >
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center">
-                                  <span className="text-white text-xs">✓</span>
+                          {passengerServices.map(
+                            (service: any, serviceIndex: number) => (
+                              <div
+                                key={serviceIndex}
+                                className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-lg"
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 bg-airline-blue rounded-full flex items-center justify-center">
+                                    <span className="text-white text-xs">
+                                      ✓
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">
+                                      {service.name}
+                                    </span>
+                                    {service.quantity > 1 && (
+                                      <span className="text-sm text-gray-600 ml-2">
+                                        x{service.quantity}
+                                      </span>
+                                    )}
+                                    {service.phase && (
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs ml-2"
+                                      >
+                                        {service.phase}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
-                                <div>
-                                  <span className="font-medium">{service.name}</span>
-                                  {service.quantity > 1 && (
-                                    <span className="text-sm text-gray-600 ml-2">x{service.quantity}</span>
-                                  )}
-                                  {service.phase && (
-                                    <Badge variant="outline" className="text-xs ml-2">
-                                      {service.phase}
-                                    </Badge>
+                                <div className="flex items-center space-x-3">
+                                  <span className="font-semibold text-airline-blue">
+                                    $
+                                    {(
+                                      parseFloat(service.price) *
+                                      (service.quantity || 1)
+                                    ).toFixed(2)}
+                                  </span>
+                                  {(order as any)?.status === "confirmed" && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleRemoveService(
+                                          service.id,
+                                          passengerIndex,
+                                        )
+                                      }
+                                      disabled={removeServiceMutation.isPending}
+                                      className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                    >
+                                      Remove
+                                    </Button>
                                   )}
                                 </div>
                               </div>
-                              <div className="flex items-center space-x-3">
-                                <span className="font-semibold text-airline-blue">
-                                  ${(parseFloat(service.price) * (service.quantity || 1)).toFixed(2)}
-                                </span>
-                                {(order as any)?.status === "confirmed" && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleRemoveService(service.id, passengerIndex)}
-                                    disabled={removeServiceMutation.isPending}
-                                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                                  >
-                                    Remove
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                            ),
+                          )}
                         </div>
                       </div>
                     );
@@ -922,34 +1119,44 @@ export default function OrderDetails() {
                 <div className="space-y-6">
                   {/* Passenger Selection Tabs */}
                   {(() => {
-                    const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
-                    
+                    const passengers = (order as any)?.passengerInfo || [
+                      { firstName: "Guest", lastName: "Passenger" },
+                    ];
+
                     return (
                       <div>
                         <div className="flex space-x-2 mb-6 border-b">
                           {passengers.map((passenger: any, index: number) => (
                             <Button
                               key={index}
-                              variant={currentServicePassenger === index ? "default" : "outline"}
+                              variant={
+                                currentServicePassenger === index
+                                  ? "default"
+                                  : "outline"
+                              }
                               onClick={() => setCurrentServicePassenger(index)}
                               className="flex-1 mb-2"
                             >
                               {passenger.firstName} {passenger.lastName}
-                              {selectedPassengerServices[index] && selectedPassengerServices[index].length > 0 && (
-                                <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                  {selectedPassengerServices[index].length}
-                                </span>
-                              )}
+                              {selectedPassengerServices[index] &&
+                                selectedPassengerServices[index].length > 0 && (
+                                  <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                    {selectedPassengerServices[index].length}
+                                  </span>
+                                )}
                             </Button>
                           ))}
                         </div>
-                        
+
                         <div className="bg-blue-50 p-4 rounded-lg mb-4">
                           <h4 className="font-semibold text-blue-900">
-                            Selecting services for: {passengers[currentServicePassenger]?.firstName} {passengers[currentServicePassenger]?.lastName}
+                            Selecting services for:{" "}
+                            {passengers[currentServicePassenger]?.firstName}{" "}
+                            {passengers[currentServicePassenger]?.lastName}
                           </h4>
                           <p className="text-sm text-blue-700">
-                            Choose services that will be assigned specifically to this passenger.
+                            Choose services that will be assigned specifically
+                            to this passenger.
                           </p>
                         </div>
                       </div>
@@ -960,219 +1167,271 @@ export default function OrderDetails() {
                   <div className="space-y-6">
                     {(() => {
                       // Filter out fare hold services (booking-time only services)
-                      const filteredServices = services.filter((service: any) => 
-                        !service.name?.includes('Fare Hold') && 
-                        service.name !== '24-Hour Fare Hold Protection'
+                      const filteredServices = services.filter(
+                        (service: any) =>
+                          !service.name?.includes("Fare Hold") &&
+                          service.name !== "24-Hour Fare Hold Protection",
                       );
-                      
-                      const servicesByPhase = filteredServices.reduce((acc: any, service: any) => {
-                        if (!acc[service.phase]) acc[service.phase] = [];
-                        acc[service.phase].push(service);
-                        return acc;
-                      }, {});
 
-                      return Object.entries(servicesByPhase).map(([phase, phaseServices]: [string, any]) => (
-                        <div key={phase} className="border rounded-lg p-4">
-                          <h3 className="font-semibold text-gray-900 mb-3 capitalize">
-                            {phase.replace('_', ' ')} Phase Services
-                          </h3>
-                          <div className="grid gap-3">
-                            {(phaseServices as any[]).map((service: any) => {
-                              const isSelected = selectedPassengerServices[currentServicePassenger]?.find(
-                                (s: any) => s.id === service.id,
-                              );
-                              return (
-                                <div
-                                  key={service.id}
-                                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                                    isSelected
-                                      ? "border-airline-blue bg-blue-50"
-                                      : "border-gray-200 hover:border-gray-300"
-                                  }`}
-                                  onClick={() => handlePassengerServiceToggle(service, currentServicePassenger)}
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center space-x-2">
-                                        <h4 className="font-semibold">
-                                          {service.name}
-                                        </h4>
-                                        <Badge variant="secondary" className="text-xs">
-                                          {service.phase}
-                                        </Badge>
-                                        {service.tag && (
-                                          <Badge variant="outline" className="text-xs">
-                                            {service.tag.replace("_", " ")}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <p className="text-sm text-gray-600 mt-1">
-                                        {service.description}
-                                      </p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className="font-bold text-airline-blue">
-                                        ${parseFloat(service.price).toFixed(2)}
-                                      </p>
-                                      {isSelected && (
-                                        <div className="w-5 h-5 bg-airline-blue rounded-full flex items-center justify-center mt-1 ml-auto">
-                                          <span className="text-white text-xs">✓</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ));
-                    })()}
-                  </div>
+                      const servicesByPhase = filteredServices.reduce(
+                        (acc: any, service: any) => {
+                          if (!acc[service.phase]) acc[service.phase] = [];
+                          acc[service.phase].push(service);
+                          return acc;
+                        },
+                        {},
+                      );
 
-                  {(() => {
-                    const allSelectedServices = Object.values(selectedPassengerServices).flat();
-                    return allSelectedServices.length > 0 && (
-                      <div className="border-t pt-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">
-                            Selected Services ({allSelectedServices.length})
-                          </h4>
-                          <div className="text-right">
-                            <p className="text-sm text-gray-600">
-                              Cost Breakdown
-                            </p>
-                            <p className="text-sm">
-                              Services: ${getPassengerServicesTotal().toFixed(2)}
-                            </p>
-                            <p className="text-sm">
-                              Taxes: $
-                              {(getPassengerServicesTotal() * 0.12).toFixed(2)}
-                            </p>
-                            <p className="font-bold text-airline-blue text-lg">
-                              Total: $
-                              {(getPassengerServicesTotal() * 1.12).toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Show services grouped by passenger */}
-                        <div className="space-y-3 mb-4">
-                          {Object.entries(selectedPassengerServices).map(([passengerIndex, services]: [string, any]) => {
-                            if (!services || services.length === 0) return null;
-                            const passengers = (order as any)?.passengerInfo || [{ firstName: 'Guest', lastName: 'Passenger' }];
-                            const passenger = passengers[parseInt(passengerIndex)];
-                            
-                            return (
-                              <div key={passengerIndex} className="bg-gray-50 p-3 rounded-lg">
-                                <h5 className="font-medium text-gray-900 mb-2">
-                                  {passenger?.firstName} {passenger?.lastName}
-                                </h5>
-                                <div className="space-y-1">
-                                  {services.map((service: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between text-sm">
-                                      <span>{service.name}</span>
-                                      <span className="font-medium">${parseFloat(service.price).toFixed(2)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                        <div className="space-y-4">
-                          <div>
-                            <label className="text-sm font-medium text-blue-800 mb-3 block">
-                              Select Payment Method
-                            </label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {paymentMethods.map((method) => {
-                                const IconComponent = method.icon;
+                      return Object.entries(servicesByPhase).map(
+                        ([phase, phaseServices]: [string, any]) => (
+                          <div key={phase} className="border rounded-lg p-4">
+                            <h3 className="font-semibold text-gray-900 mb-3 capitalize">
+                              {phase.replace("_", " ")} Phase Services
+                            </h3>
+                            <div className="grid gap-3">
+                              {(phaseServices as any[]).map((service: any) => {
+                                const isSelected = selectedPassengerServices[
+                                  currentServicePassenger
+                                ]?.find((s: any) => s.id === service.id);
                                 return (
                                   <div
-                                    key={method.value}
-                                    className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                      paymentMethod === method.value
-                                        ? "border-blue-500 bg-blue-50"
-                                        : "border-gray-200 bg-white hover:border-gray-300"
+                                    key={service.id}
+                                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                                      isSelected
+                                        ? "border-airline-blue bg-blue-50"
+                                        : "border-gray-200 hover:border-gray-300"
                                     }`}
                                     onClick={() =>
-                                      setPaymentMethod(method.value)
+                                      handlePassengerServiceToggle(
+                                        service,
+                                        currentServicePassenger,
+                                      )
                                     }
                                   >
-                                    <div className="flex items-center space-x-3">
-                                      <IconComponent className="w-5 h-5 text-gray-600" />
-                                      <span className="font-medium text-gray-900">
-                                        {method.label}
-                                      </span>
-                                    </div>
-                                    {paymentMethod === method.value && (
-                                      <div className="mt-2">
-                                        <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex-1">
+                                        <div className="flex items-center space-x-2">
+                                          <h4 className="font-semibold">
+                                            {service.name}
+                                          </h4>
+                                          <Badge
+                                            variant="secondary"
+                                            className="text-xs"
+                                          >
+                                            {service.phase}
+                                          </Badge>
+                                          {service.tag && (
+                                            <Badge
+                                              variant="outline"
+                                              className="text-xs"
+                                            >
+                                              {service.tag.replace("_", " ")}
+                                            </Badge>
+                                          )}
                                         </div>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                          {service.description}
+                                        </p>
                                       </div>
-                                    )}
+                                      <div className="text-right">
+                                        <p className="font-bold text-airline-blue">
+                                          $
+                                          {parseFloat(service.price).toFixed(2)}
+                                        </p>
+                                        {isSelected && (
+                                          <div className="w-5 h-5 bg-airline-blue rounded-full flex items-center justify-center mt-1 ml-auto">
+                                            <span className="text-white text-xs">
+                                              ✓
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 );
                               })}
                             </div>
                           </div>
+                        ),
+                      );
+                    })()}
+                  </div>
 
-                          {(paymentMethod === "credit_card" ||
-                            paymentMethod === "debit_card") && (
-                            <div className="bg-white p-4 rounded-lg border">
-                              <h4 className="font-medium text-gray-900 mb-3">
-                                Card Information
-                              </h4>
-                              <p className="text-xs text-blue-600 mb-3">
-                                <Lock className="w-3 h-3 inline mr-1" />
-                                Your payment information is encrypted and secure
+                  {(() => {
+                    const allSelectedServices = Object.values(
+                      selectedPassengerServices,
+                    ).flat();
+                    return (
+                      allSelectedServices.length > 0 && (
+                        <div className="border-t pt-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold">
+                              Selected Services ({allSelectedServices.length})
+                            </h4>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-600">
+                                Cost Breakdown
+                              </p>
+                              <p className="text-sm">
+                                Services: $
+                                {getPassengerServicesTotal().toFixed(2)}
+                              </p>
+                              <p className="text-sm">
+                                Taxes: $
+                                {(getPassengerServicesTotal() * 0.12).toFixed(
+                                  2,
+                                )}
+                              </p>
+                              <p className="font-bold text-airline-blue text-lg">
+                                Total: $
+                                {(getPassengerServicesTotal() * 1.12).toFixed(
+                                  2,
+                                )}
                               </p>
                             </div>
-                          )}
+                          </div>
 
-                          {paymentMethod === "wallet" && (
-                            <div className="bg-green-50 p-3 rounded-lg border border-green-200">
-                              <p className="text-sm text-green-800">
-                                <strong>Wallet Payment:</strong> Amount will be
-                                deducted from your wallet balance.
-                                <br />
-                                <span className="font-medium">
-                                  Current balance: ${balance}
-                                </span>
-                              </p>
+                          {/* Show services grouped by passenger */}
+                          <div className="space-y-3 mb-4">
+                            {Object.entries(selectedPassengerServices).map(
+                              ([passengerIndex, services]: [string, any]) => {
+                                if (!services || services.length === 0)
+                                  return null;
+                                const passengers = (order as any)
+                                  ?.passengerInfo || [
+                                  { firstName: "Guest", lastName: "Passenger" },
+                                ];
+                                const passenger =
+                                  passengers[parseInt(passengerIndex)];
+
+                                return (
+                                  <div
+                                    key={passengerIndex}
+                                    className="bg-gray-50 p-3 rounded-lg"
+                                  >
+                                    <h5 className="font-medium text-gray-900 mb-2">
+                                      {passenger?.firstName}{" "}
+                                      {passenger?.lastName}
+                                    </h5>
+                                    <div className="space-y-1">
+                                      {services.map(
+                                        (service: any, idx: number) => (
+                                          <div
+                                            key={idx}
+                                            className="flex justify-between text-sm"
+                                          >
+                                            <span>{service.name}</span>
+                                            <span className="font-medium">
+                                              $
+                                              {parseFloat(
+                                                service.price,
+                                              ).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              },
+                            )}
+                          </div>
+
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium text-blue-800 mb-3 block">
+                                  Select Payment Method
+                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  {paymentMethods.map((method) => {
+                                    const IconComponent = method.icon;
+                                    return (
+                                      <div
+                                        key={method.value}
+                                        className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                          paymentMethod === method.value
+                                            ? "border-blue-500 bg-blue-50"
+                                            : "border-gray-200 bg-white hover:border-gray-300"
+                                        }`}
+                                        onClick={() =>
+                                          setPaymentMethod(method.value)
+                                        }
+                                      >
+                                        <div className="flex items-center space-x-3">
+                                          <IconComponent className="w-5 h-5 text-gray-600" />
+                                          <span className="font-medium text-gray-900">
+                                            {method.label}
+                                          </span>
+                                        </div>
+                                        {paymentMethod === method.value && (
+                                          <div className="mt-2">
+                                            <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {(paymentMethod === "credit_card" ||
+                                paymentMethod === "debit_card") && (
+                                <div className="bg-white p-4 rounded-lg border">
+                                  <h4 className="font-medium text-gray-900 mb-3">
+                                    Card Information
+                                  </h4>
+                                  <p className="text-xs text-blue-600 mb-3">
+                                    <Lock className="w-3 h-3 inline mr-1" />
+                                    Your payment information is encrypted and
+                                    secure
+                                  </p>
+                                </div>
+                              )}
+
+                              {paymentMethod === "wallet" && (
+                                <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                                  <p className="text-sm text-green-800">
+                                    <strong>Wallet Payment:</strong> Amount will
+                                    be deducted from your wallet balance.
+                                    <br />
+                                    <span className="font-medium">
+                                      Current balance: ${balance}
+                                    </span>
+                                  </p>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={handleAddSelectedServices}
+                              disabled={
+                                addServicesMutation.isPending ||
+                                Object.values(selectedPassengerServices).flat()
+                                  .length === 0
+                              }
+                              className="flex-1 bg-green-600 hover:bg-green-700"
+                            >
+                              {addServicesMutation.isPending
+                                ? "Processing Payment..."
+                                : `Proceed to Payment - $${(getPassengerServicesTotal() * 1.12).toFixed(2)}`}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedServices([]);
+                                setSelectedPassengerServices({});
+                                setShowAddServices(false);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={handleAddSelectedServices}
-                          disabled={
-                            addServicesMutation.isPending ||
-                            Object.values(selectedPassengerServices).flat().length === 0
-                          }
-                          className="flex-1 bg-green-600 hover:bg-green-700"
-                        >
-                          {addServicesMutation.isPending
-                            ? "Processing Payment..."
-                            : `Proceed to Payment - $${(getPassengerServicesTotal() * 1.12).toFixed(2)}`}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedServices([]);
-                            setSelectedPassengerServices({});
-                            setShowAddServices(false);
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
+                      )
                     );
                   })()}
                 </div>
@@ -1208,7 +1467,11 @@ export default function OrderDetails() {
                   </h4>
                   <div className="space-y-1 text-sm">
                     <div className="flex justify-between">
-                      <span>Services ({Object.values(selectedPassengerServices).flat().length} items)</span>
+                      <span>
+                        Services (
+                        {Object.values(selectedPassengerServices).flat().length}{" "}
+                        items)
+                      </span>
                       <span>${getPassengerServicesTotal().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
@@ -1451,6 +1714,47 @@ export default function OrderDetails() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Complete Payment Button for Pending Orders */}
+          {order?.status === "pending" &&
+            order?.paymentStatus === "pending" && (
+              <div className="space-y-2">
+                <Button
+                  onClick={() =>
+                    setLocation(`/complete-payment/${order.orderNumber}`)
+                  }
+                  className="bg-green-600 hover:bg-green-700 text-white w-full"
+                  disabled={paymentTimer?.isExpired}
+                >
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  {paymentTimer?.isExpired ? "Payment Expired" : "Complete Payment"}
+                </Button>
+                
+                {/* Payment Timer Display */}
+                {paymentTimer && !paymentTimer.isExpired && (
+                  <div className="bg-orange-100 border border-orange-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-orange-600" />
+                      <p className="text-sm text-orange-800">
+                        Payment expires in: {paymentTimer.remainingMinutes}m {paymentTimer.remainingSeconds}s
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {paymentTimer?.isExpired && (
+                  <div className="bg-red-100 border border-red-200 rounded-lg p-3">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-red-600" />
+                      <p className="text-sm text-red-800">
+                        Payment window expired - please create a new booking
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* Confirmed Order Actions */}
           {order?.status === "confirmed" && !order?.isCheckedIn && (
             <>
               <Button
@@ -1482,6 +1786,19 @@ export default function OrderDetails() {
             Download E-Ticket
           </Button>
 
+          {/* Complete Payment Button below Download E-Ticket for pending orders */}
+          {order?.paymentStatus === "pending" && (
+            <Button
+              onClick={() =>
+                setLocation(`/complete-payment/${order.orderNumber}`)
+              }
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CreditCard className="w-4 h-4 mr-2" />
+              Complete Payment
+            </Button>
+          )}
+
           {(order?.status === "confirmed" || order?.status === "pending") && (
             <Button
               onClick={handleCancel}
@@ -1494,6 +1811,19 @@ export default function OrderDetails() {
             </Button>
           )}
         </div>
+
+        {/* Payment Pending Notice */}
+        {order?.status === "pending" && order?.paymentStatus === "pending" && (
+          <Card className="mt-6 border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-sm text-red-800">
+                <strong>Payment Required!</strong> Your order is pending payment
+                completion. Seats and services will be reserved once payment is
+                processed.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Check-in Available Notice */}
         {order?.canCheckIn && !order?.isCheckedIn && (
