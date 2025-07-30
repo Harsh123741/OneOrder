@@ -2,7 +2,28 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, Plane, Calendar, MapPin, Users, Plus, Utensils, Shield, Briefcase, Wifi, Package, CreditCard, Trash2, ArrowRight } from "lucide-react";
+import {
+  Clock,
+  Plane,
+  ArrowRight,
+  Wifi,
+  Utensils,
+  Briefcase,
+  Shield,
+  Star,
+  Users,
+  ShoppingCart,
+  Plus,
+  Minus,
+  Check,
+  X,
+  TrendingUp,
+  TrendingDown,
+  Lock,
+  Crown,
+  Gift,
+  Zap,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { useQuery } from "@tanstack/react-query";
@@ -105,7 +126,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
   const handleAddServiceToCart = async (service: any, bundlePrice?: number) => {
     setAddingService(service.id);
-    
+
     try {
       const serviceItem = {
         id: `service-${service.id}-${Date.now()}`,
@@ -124,7 +145,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
       };
 
       await addItem(serviceItem);
-      
+
       toast({
         title: "Added to Cart",
         description: `${service.name} has been added to your cart`,
@@ -211,6 +232,60 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
 
   // Check if fare hold should be shown (only before flight booking)
   const shouldShowFareHold = !isFlightInCart;
+
+  const addExclusiveOffer = async (offer: any) => {
+    setAddingService(offer.id);
+    try {
+      const serviceItem = {
+        id: `service-${offer.id}-${Date.now()}`,
+        type: 'service' as const,
+        name: offer.name,
+        description: offer.description,
+        price: offer.bundlePrice,
+        quantity: 1,
+        serviceId: offer.id,
+        details: {
+          phase: 'booking',
+          bundlePrice: offer.bundlePrice,
+          originalPrice: offer.originalPrice,
+          discount: `${Math.round(((offer.originalPrice - offer.bundlePrice) / offer.originalPrice) * 100)}`,
+          isExclusiveOffer: true,
+          flightSpecific: true
+        }
+      };
+
+      await addItem(serviceItem);
+
+      toast({
+        title: "Added to Cart",
+        description: `${offer.name} has been added to your cart.`,
+      });
+    } catch (error) {
+      console.error('Failed to add exclusive offer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingService(null);
+    }
+  };
+
+  const removeExclusiveOfferFromCart = (offerId: string) => {
+    const itemToRemove = items.find(item => item.serviceId === offerId);
+    if (itemToRemove) {
+      removeItem(itemToRemove.id);
+      toast({
+        title: "Removed from Cart",
+        description: `Exclusive offer has been removed from your cart.`,
+      });
+    }
+  };
+
+  const isExclusiveOfferInCart = (offerId: string) => {
+    return items.some(item => item.type === 'service' && item.serviceId === offerId);
+  };
 
   return (
     <Card className="airline-card overflow-hidden">
@@ -330,7 +405,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
             <div className="w-5 h-5 text-orange-600">✨</div>
             <h4 className="font-semibold text-gray-900">Exclusive Offers for This Flight</h4>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {flightExclusiveOffers.map((offer) => {
               const IconComponent = offer.icon;
@@ -350,31 +425,35 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                             Offer Price:<span className="text-lg font-bold text-orange-600 ml-2">${offer.bundlePrice}</span>
                           </span>
                         </div>
-                        {isServiceInCart(offer.id) ? (
+                        {isExclusiveOfferInCart(offer.id) ? (
                           <Button
+                            variant="destructive"
                             size="sm"
-                            onClick={() => removeServiceFromCart(offer.id)}
-                            disabled={addingService === offer.id}
-                            className="bg-red-500 hover:bg-red-600 text-white text-xs px-3"
+                            onClick={() => removeExclusiveOfferFromCart(offer.id)}
+                            className="w-full bg-red-600 hover:bg-red-700 text-white transition-colors duration-200"
                           >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Remove
+                            <Minus className="h-4 w-4 mr-2" />
+                            Remove from Cart
                           </Button>
                         ) : (
                           <Button
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleAddServiceToCart({
-                              id: offer.id,
-                              name: offer.name,
-                              description: offer.description,
-                              price: offer.originalPrice.toString(),
-                              phase: 'booking'
-                            }, offer.bundlePrice)}
+                            onClick={() => addExclusiveOffer(offer)}
                             disabled={addingService === offer.id}
-                            className="bg-orange-500 hover:bg-orange-600 text-white text-xs px-3"
+                            className="w-full bg-white border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400 transition-colors duration-200"
                           >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add to Cart
+                            {addingService === offer.id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
+                                Adding...
+                              </>
+                            ) : (
+                              <>
+                                <ShoppingCart className="h-4 w-4 mr-2" />
+                                Add Bundle
+                              </>
+                            )}
                           </Button>
                         )}
                       </div>
@@ -395,7 +474,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
                 {loyaltyStatus.currentTier?.tierName} Tier Exclusive Offers
               </h4>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {bookingBundles.slice(0, 2).map((bundle: any) => (
                 <div key={bundle.id} className="bg-white rounded-lg border border-blue-200 p-4">
