@@ -123,28 +123,16 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
             <div className="space-y-2">
               <Label htmlFor="departureDate">Departure</Label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-400 z-10 pointer-events-none" />
+                <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   id="departureDate"
                   type="date"
                   value={searchData.departureDate}
                   onChange={(e) => setSearchData({ ...searchData, departureDate: e.target.value })}
-                  className="pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                  className="pl-10"
                   min={new Date().toISOString().split('T')[0]}
-                  style={{
-                    colorScheme: searchData.departureDate ? 'auto' : 'light'
-                  }}
-                  onFocus={(e) => {
-                    if (!searchData.departureDate) {
-                      e.target.showPicker?.();
-                    }
-                  }}
+                  placeholder="Select date"
                 />
-                {!searchData.departureDate && (
-                  <div className="absolute inset-0 flex items-center pl-10 pointer-events-none text-gray-500">
-                    Select date
-                  </div>
-                )}
               </div>
             </div>
 
@@ -152,34 +140,17 @@ export default function FlightSearchForm({ onSearch }: FlightSearchFormProps) {
             <div className="space-y-2">
               <Label htmlFor="returnDate">Return</Label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-400 z-10 pointer-events-none" />
+                <Calendar className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   id="returnDate"
                   type="date"
                   value={searchData.returnDate}
                   onChange={(e) => setSearchData({ ...searchData, returnDate: e.target.value })}
-                  className="pl-10 [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:right-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:cursor-pointer disabled:cursor-not-allowed"
+                  className="pl-10"
                   disabled={searchData.tripType === "one_way"}
                   min={searchData.departureDate || new Date().toISOString().split('T')[0]}
-                  style={{
-                    colorScheme: searchData.returnDate ? 'auto' : 'light'
-                  }}
-                  onFocus={(e) => {
-                    if (!searchData.returnDate && searchData.tripType !== "one_way") {
-                      e.target.showPicker?.();
-                    }
-                  }}
+                  placeholder="Select date"
                 />
-                {!searchData.returnDate && searchData.tripType !== "one_way" && (
-                  <div className="absolute inset-0 flex items-center pl-10 pointer-events-none text-gray-500">
-                    Select date
-                  </div>
-                )}
-                {searchData.tripType === "one_way" && (
-                  <div className="absolute inset-0 flex items-center pl-10 pointer-events-none text-gray-400">
-                    Not required
-                  </div>
-                )}
               </div>
             </div>
           </div>
