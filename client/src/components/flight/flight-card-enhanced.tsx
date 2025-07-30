@@ -9,6 +9,9 @@ import {
   Wifi,
   Utensils,
   Briefcase,
+  Package,
+  CreditCard,
+  Trash2,
   Shield,
   Star,
   Users,
@@ -361,7 +364,7 @@ export default function FlightCardEnhanced({ flight, onSelect }: FlightCardProps
             {/* Price and Actions */}
             <div className="flex flex-col items-end space-y-3 w-full lg:w-auto">
               {isFlightInCart ? (
-                <div className="flex flex-col space-y-2">
+                <div className="flex flex-col space-y-2 w-full lg:w-auto">
                   <Button
                     onClick={handleProceed}
                     className="w-full lg:w-auto bg-green-600 hover:bg-green-700 text-white px-6"
